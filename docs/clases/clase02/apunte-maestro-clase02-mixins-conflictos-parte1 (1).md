@@ -147,6 +147,48 @@ Atacante.new                      # Resultado esperado: NoMethodError — undefi
 
 Lo que cambió respecto de la clase 1 es una palabra: `class` por `module`. La sintaxis para definir métodos y estado adentro es idéntica. Lo que se pierde es `new`; lo que se gana es poder `include`-ir el módulo en tantas clases como quieras, y que una clase incluya tantos módulos como quiera.
 
+### Un paréntesis de Ruby: el `@`, `attr_accessor` y `self.`
+
+Este código usa tres cosas que se parecen y no son lo mismo, y que nadie explicó todavía. Va con un ejemplo aparte, chiquito, para no mezclarlo con el dominio.
+
+```ruby
+class Lampara
+  def initialize
+    @encendida = false      # @encendida: variable de INSTANCIA. Vive adentro de cada objeto Lampara
+    aviso = "creada"        # aviso: variable LOCAL. Muere cuando termina initialize
+  end
+end
+```
+
+**`@nombre` es una variable de instancia.** El arroba significa *"esto es estado del objeto"*: cada objeto tiene la suya y sobrevive entre llamadas a métodos. Sin arroba, es una variable local del método y desaparece al salir. Dos propiedades más: una `@variable` que nunca se asignó vale `nil` (y `nil` cuenta como falso, sin error), y **no se ve desde afuera**: `lampara.@encendida` no existe.
+
+Para que otro objeto la lea o la escriba hace falta un método. **`attr_accessor :encendida` es un atajo que escribe esos dos métodos por vos**, y nada más:
+
+```ruby
+class Lampara
+  attr_accessor :encendida  # equivale EXACTAMENTE a escribir:
+                            #   def encendida;         @encendida;         end   ← getter
+                            #   def encendida=(valor); @encendida = valor; end   ← setter
+end
+
+l = Lampara.new
+l.encendida = true          # llama al setter → @encendida = true
+l.encendida                 # llama al getter → Resultado esperado: true
+```
+
+O sea: **el `@` es la variable; `attr_accessor` son los métodos para llegar a ella.** Son dos capas, no dos formas de declarar lo mismo. (`attr_reader` genera solo el getter; `attr_writer` solo el setter.)
+
+Y adentro de un método, `self.encendida` es lo mismo que `l.encendida` desde afuera: **llama al método**, no toca la variable. Por eso en `Atacante` se escribe `self.potencial_ofensivo` y `self.energia = ...`: se pasa por el getter y el setter. Una trampa que te va a morder en el TP:
+
+```ruby
+def apagar
+  encendida = false         # ✗ SIN self: crea una variable LOCAL llamada encendida. El objeto no cambia
+  self.encendida = false    # ✔ CON self: llama al setter
+end
+```
+
+Para asignar por el setter, el `self.` es obligatorio. Para leer, Ruby te perdona el `self.` si no hay una local con ese nombre, pero por consistencia el código de la cátedra lo usa siempre. Cuándo conviene tocar `@x` directo en vez de `self.x` lo vas a ver en la Parte 4, cuando el código lo necesite.
+
 ### La definición
 
 Hay dos maneras de definir algo nuevo: por **álgebra** —el conjunto mínimo de reglas de cómo se opera, se reduce, se convierte— o por **analogía**: "es como X, pero". La analogía es más accesible porque partís de algo que ya conocés; el precio es que depende de qué entendía por X quien la dijo, y "clase" es una idea que cambia según a quién le preguntes. Tenelo presente, porque Bracha usa las dos.

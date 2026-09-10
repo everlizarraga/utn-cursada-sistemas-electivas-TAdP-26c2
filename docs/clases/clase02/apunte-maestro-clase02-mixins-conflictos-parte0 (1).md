@@ -56,7 +56,8 @@ Esta unidad se para sobre la clase 1 sin volver a explicarla. Lo que se da por s
 - **El modelo de Age of Empires** y su problema: `Guerrero` necesita ser `Atacante` *y* `Defensor` a la vez, y con herencia simple no hay cableado posible que no ensucie interfaces o repita código.
 - **Method lookup:** cuando un objeto recibe un mensaje, se busca el método en su clase, si no está se sube a la superclase, y así hasta encontrarlo o llegar a `Object`.
 - **Sobreescritura y `super`:** una subclase redefine un método y, si quiere, llama al de arriba con `super`.
-- **Ruby mínimo:** `class` / `def` / `end`, `self`, `attr_accessor` (genera getter y setter de una variable de instancia), `@variable` es estado del objeto, `Clase.new` instancia.
+- **Ruby mínimo:** `class` / `def` / `end`, `self`, `attr_accessor` (genera getter y setter), `Clase.new` instancia.
+- **Lo que NO se asume:** qué es exactamente una variable con `@` adelante, cómo se relaciona con `attr_accessor`, y cuándo usar `@x` o `self.x`. Nadie lo explicó hasta ahora; esta unidad lo explica en la Parte 1 (§4) y lo completa en la Parte 4 (§3).
 - **`module` e `include`** se nombraron al final de la clase 1 como la salida al callejón. Esta unidad los explica de verdad; no hace falta traerlos sabidos.
 
 ---
@@ -141,6 +142,7 @@ Términos que esta unidad introduce. Una línea cada uno; la explicación comple
 | **Cake Pattern** | Cadena de mixins que hacen su parte y llaman a `super`, cerrada con un centinela | 4 |
 | **`alias_method`** | En Ruby: copiar un método existente con otro nombre | 4 |
 | **Open classes** | En Ruby, `class X` no define X: la *abre* y agrega cosas | 2 (glosa) |
+| **Variable de instancia (`@x`)** | Estado que vive adentro de cada objeto; `attr_accessor` genera los métodos para leerla y escribirla desde afuera | 1 (§4) y 4 (§3) |
 
 ---
 

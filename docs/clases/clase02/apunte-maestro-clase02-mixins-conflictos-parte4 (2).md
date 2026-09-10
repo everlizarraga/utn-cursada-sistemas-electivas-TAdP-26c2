@@ -142,7 +142,7 @@ muralla.energia                       # Resultado esperado: 0
 kamikaze.energia                      # Resultado esperado: 0
 ```
 
-Ese `super` en `atacar` es el `super` dinámico de la Parte 2: `Kamikaze` no sabe quién tiene el `atacar` de verdad; sabe que alguien en la cadena lo tiene.
+Ese `super` en `atacar` es el `super` dinámico de la Parte 2: `Kamikaze` no sabe quién tiene el `atacar` de verdad; sabe que alguien en la cadena lo tiene. Un detalle de sintaxis: `super(un_defensor)` pasa ese argumento explícitamente; `super` a secas, sin paréntesis, pasa los mismos argumentos que recibió el método actual. Acá son equivalentes; se escribe con paréntesis para que se lea.
 
 ```
 ┌────────────────┬──┐                       ┌────────────────┬──┐
@@ -209,7 +209,21 @@ misil.atacar(Muralla.new)                       # 400 > 50 → danio 350; descan
 misil.potencial_ofensivo                        # Resultado esperado: 200
 ```
 
-Fijate cómo se implementó el bonus del atacante: no se toca el valor guardado, se **redefine el getter** `potencial_ofensivo` para que devuelva el doble mientras `descansado` sea verdadero. Es un detalle de Ruby que vale conocer: `attr_accessor` genera un getter, y vos podés pisarlo con un `def` propio que lea la variable de instancia `@potencial_ofensivo` directamente.
+Fijate cómo se implementó el bonus del atacante: no se toca el valor guardado, se **redefine el getter** `potencial_ofensivo` para que devuelva el doble mientras `descansado` sea verdadero. Acá se cierra el paréntesis de Ruby que abrió la Parte 1 (§4): `attr_accessor` generó un getter, y un `def` propio con el mismo nombre lo pisa.
+
+```ruby
+attr_accessor :potencial_ofensivo, :descansado       # genera potencial_ofensivo y potencial_ofensivo=
+
+def potencial_ofensivo                                # ← pisa el getter generado
+  self.descansado ? @potencial_ofensivo * 2 : @potencial_ofensivo
+  #                 ↑ acá SÍ se lee la variable directo. Si escribieras self.potencial_ofensivo,
+  #                   estarías llamando a este mismo método: recursión infinita → SystemStackError
+end
+```
+
+Y de acá sale la regla que faltaba: **usá siempre `self.x`, salvo cuando estés escribiendo el propio getter o setter de `x`.** Razón: `self.x` respeta cualquier redefinición del getter; `@x` la ignora. Mirá `atacar`: compara con `self.potencial_ofensivo`, así que ve el valor **con** el bonus. Si comparara con `@potencial_ofensivo`, el descanso no serviría de nada. Y en `descansar`, `self.energia += 10` es `self.energia = self.energia + 10`: pasa por el setter, que es lo que queremos; sin el `self.` sería una variable local en `nil` y explotaría.
+
+También conviene notar que `descansado` nunca se inicializa: arranca en `nil`, `nil` es falso, y el ternario elige la rama sin bonus. Es la propiedad de la Parte 1 trabajando a favor.
 
 ### Por qué nadie vio el conflicto
 
