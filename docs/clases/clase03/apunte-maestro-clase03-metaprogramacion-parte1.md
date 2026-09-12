@@ -60,8 +60,8 @@ module Defensor
   attr_accessor :potencial_defensivo, :energia
 
   def sufri_danio(danio)
-    self.energia= self.energia - danio
-  end
+    self.energia= self.energia - danio            # llama al setter energia= (el espacio antes del
+  end                                             # valor es solo estilo; Parte 2 explica estos métodos)
 
   def descansar
     self.energia += 10                              # descansar como defensor = sumar energía
@@ -173,8 +173,8 @@ class Peloton                                       # agrupa guerreros y reaccio
 
   attr_accessor :integrantes, :estrategia, :retirado
 
-  def self.cobarde(integrantes)                     # método de clase: se le manda a Peloton, no a un pelotón
-    self.new(integrantes) { |peloton|
+  def self.cobarde(integrantes)                     # "def self." define un MÉTODO DE CLASE: lo entiende
+    self.new(integrantes) { |peloton|               # Peloton (Peloton.cobarde(...)), no un pelotón. Ver abajo.
       peloton.retirate
     }
   end
@@ -213,23 +213,28 @@ class Peloton                                       # agrupa guerreros y reaccio
 end
 ```
 
+Dos construcciones de este archivo que conviene tener claras antes de seguir, porque la clase las da por sabidas y van a aparecer todo el tiempo:
+
+- **`def self.cobarde(...)`**, en `Peloton`, define un **método de clase**: un método que entiende la clase misma, no sus instancias. Se usa como `Peloton.cobarde(guerreros)` —le mandás el mensaje a `Peloton`— y no como `un_peloton.cobarde`. Sirve para cosas como "dame un pelotón armado de tal manera", donde todavía no tenés ningún pelotón al que mandarle nada. Si venís de Java, es lo que ahí llamarías método estático; en Ruby no es exactamente eso, y la diferencia es uno de los temas centrales de la Parte 6. Por ahora: `def self.x` = "este método es para la clase".
+- **`self.energia = ...`** y **`self.energia += 10`** no son asignaciones a una variable: son envíos de mensaje a un método que se llama `energia=`, con el signo igual incluido en el nombre. Es un método más, que `attr_accessor` generó. Se explica con detalle en la Parte 2, sección 9; hasta ahí, leelo como "le pido al objeto que cambie su energía".
+
 Y así queda armado, en un dibujo que vamos a ir completando durante toda la clase:
 
 ```
-                 ┌──────────┐
-                 │  Object  │   (nadie lo escribió: es la superclase que Ruby pone
-                 └────▲─────┘    cuando vos no decís nada)
-                      │ hereda de
-     ┌─────────┐      │                ┌───────────┐
-     │Atacante │◄╌╌╌╌╌┤ incluye        │  Defensor │
-     └─────────┘      │       ╌╌╌╌╌╌╌╌►└───────────┘
-                 ┌────┴─────┐
-   atila ───────►│ Guerrero │
-   es instancia  └────▲─────┘
-   de                 │ hereda de
-                 ┌────┴──────┐
-   zorro ───────►│ Espadachin│
-                 └───────────┘
+                     ┌──────────┐
+                     │  Object  │   (nadie lo escribió: es la superclase que Ruby pone
+                     └────▲─────┘    cuando vos no decís nada)
+                          │ hereda de
+     ┌──────────┐         │         ┌───────────┐
+     │ Atacante │◄╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌►│  Defensor │
+     └──────────┘ incluye │ incluye └───────────┘
+                     ┌────┴─────┐
+   atila ───────────►│ Guerrero │
+   es instancia de   └────▲─────┘
+                          │ hereda de
+                     ┌────┴──────┐
+   zorro ───────────►│ Espadachin│
+   es instancia de   └───────────┘
 ```
 
 Un repaso de un minuto de cómo Ruby encuentra un método, que es la idea con la que llegamos a esta clase y que vamos a formalizar en la Parte 3. Si le mandás un mensaje a `atila`, Ruby lo busca primero en `Guerrero`; si no está, en sus mixins **en orden** —primero `Defensor`, que fue incluido último, y después `Atacante`— y si tampoco, sube a la superclase, `Object`. Si un método está en los dos mixins, gana el que está más cerca en ese orden. No hay negociación: hay un orden y se respeta. Ese orden se llama **linearización**, y fue el motivo de los `alias_method` de arriba.

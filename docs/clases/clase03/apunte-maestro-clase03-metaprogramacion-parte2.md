@@ -164,6 +164,7 @@ atila.instance_methods
 ```ruby
 atila.class.instance_methods(false)
 # => [:descansar_atacante, :descansar_defensor, :peloton, :lastimado, :cansado, :sufri_danio, :descansar, :peloton=]
+#    (el orden en que aparecen puede variar según la versión de Ruby; el conjunto es el mismo)
 ```
 
 Ocho métodos, y son exactamente los que Guerrero define en su cuerpo: los dos alias, `descansar`, `lastimado`, `sufri_danio`, `cansado`, y el getter y setter que genera `attr_accessor :peloton`. No están `energia` ni `atacar`, porque esos vienen de los mixins.
@@ -229,7 +230,7 @@ Espadachin.superclass.superclass
 # => Object
 ```
 
-Nadie escribió `class Guerrero < Object`. Cuando definís una clase sin decir de quién hereda, Ruby pone `Object` como superclase. Y `Object` es la clase que le da a todo objeto las cosas básicas: `class`, `methods`, `is_a?` y compañía.
+Nadie escribió `class Guerrero < Object`. Cuando definís una clase sin decir de quién hereda, Ruby pone `Object` como superclase. Y `Object` es la clase que le da a todo objeto las cosas básicas: `class`, `methods`, `is_a?` y compañía (la mayoría, en rigor, a través de un mixin que `Object` incluye; lo vas a descubrir en un rato).
 
 Con `class` y `superclass` ya podemos dibujar. En los diagramas de esta clase se usan dos flechas con significado fijo, y en la cátedra tienen color: **azul = "es instancia de" (`class`)** y **rojo = "hereda de" (`superclass`)**. Acá, en texto, van etiquetadas:
 
@@ -385,7 +386,13 @@ Esto te dice algo sobre **todas** las respuestas de esta clase: son transicional
 
 ## 9. Tres formas de decir "energía" 🔴
 
-Ya que estamos adentro de un método, hay una distinción que hace falta tener clara, porque genera errores silenciosos. Adentro de un método de Guerrero podés escribir tres cosas que parecen la misma y no lo son:
+Antes de las tres formas, una palabra que venís viendo en todo el código y que hay que definir de una vez: **`self`**.
+
+`self` es **el objeto que recibió el mensaje que se está ejecutando en este momento**. Cuando hacés `atila.atacar(otro)`, adentro del método `atacar`, `self` es `atila`. Cuando `conan` ataca, adentro del mismo método `self` es `conan`. No es una variable que vos definís: Ruby la pone apuntando al receptor, y cambia según quién recibió el mensaje. Es la forma que tiene un método de hablar del objeto sobre el que está corriendo.
+
+Y hay un detalle que va a importar mucho más adelante: **`self` también existe afuera de los métodos, en el cuerpo de una clase o de un módulo**, y ahí es la clase o el módulo mismo. Adentro de `module Defensor ... end`, `self` es `Defensor`. Guardá eso para el final de esta sección.
+
+Ahora sí. Adentro de un método hay una distinción que hace falta tener clara, porque genera errores silenciosos. Adentro de un método de Guerrero podés escribir tres cosas que parecen la misma y no lo son:
 
 ```ruby
 def atacar(otro)
@@ -411,6 +418,31 @@ end
 
 Al asignar, `energia = 5` **siempre** es variable local, aunque exista el setter. Si querés el setter, el `self.` es obligatorio. Y si escribís mal el nombre de un getter sin `self.` —`enrgia` en vez de `energia`— Ruby no falla: inventa una variable local con ese nombre, que vale `nil`, y el error aparece tres líneas más adelante en otro lado. Cuidado con eso.
 
+### Los métodos que terminan en `=`
+
+Acabamos de decir "llama al setter `energia=`", y hay que detenerse en eso porque es una de las cosas que más confunden cuando venís de otros lenguajes. En Ruby, **el nombre de un método puede terminar en `=`**. `energia=` es un método común y corriente, que se llama así, con el signo igual adentro del nombre, y que recibe un parámetro. Lo único especial es que Ruby te deja invocarlo **con pinta de asignación**:
+
+```ruby
+atila.energia = 80          # esto NO es una asignación: es un envío de mensaje
+atila.energia=(80)          # exactamente lo mismo, escrito sin el azúcar sintáctico
+atila.send(:energia=, 80)   # y lo mismo con send: fijate que el selector incluye el =
+# => 80                     ← las tres líneas hacen lo mismo y responden lo mismo
+```
+
+Cuando ves `atila.energia = 80`, Ruby lee: "mandale a `atila` el mensaje `energia=` con el argumento `80`". El espacio alrededor del `=` es estilo, nada más; por eso en el archivo de la Parte 1 aparece escrito `self.energia= self.energia - danio`, con el igual pegado al nombre. Es la misma llamada.
+
+Y `+=` es azúcar sobre azúcar:
+
+```ruby
+self.energia += 10          # Ruby lo expande a:
+self.energia = self.energia + 10
+#    ▲              ▲
+#    │              └─ primero el getter energia (lee el valor)
+#    └─ después el setter energia= (escribe el resultado)
+```
+
+Dos envíos de mensaje: el getter para leer, el setter para escribir. Ahora se entiende del todo por qué el `self.` era obligatorio al asignar: sin el receptor explícito, `energia = 5` no tiene forma de ser un envío de mensaje, y Ruby lo toma como una variable local nueva.
+
 ### Y `attr_accessor` no es una palabra clave
 
 Ya que estamos mirando el archivo con estos ojos, esta línea merece una segunda lectura:
@@ -420,7 +452,7 @@ module Defensor
   attr_accessor :potencial_defensivo, :energia
 ```
 
-Eso no es una declaración ni una palabra reservada del lenguaje. **Es un envío de mensaje.** Todo lo que escribís en el cuerpo de una clase o un módulo es un mensaje que se le manda a esa clase o a ese módulo —no a las instancias, a la clase misma. Esa línea es exactamente lo mismo que `self.attr_accessor(:potencial_defensivo, :energia)` con `self` siendo `Defensor`. Ruby te deja sacar el `self.` y los paréntesis, nada más.
+Eso no es una declaración ni una palabra reservada del lenguaje. **Es un envío de mensaje.** Todo lo que escribís en el cuerpo de una clase o un módulo es un mensaje que se le manda a esa clase o a ese módulo —no a las instancias, a la clase misma. Esa línea es exactamente lo mismo que `self.attr_accessor(:potencial_defensivo, :energia)`, con `self` siendo `Defensor` —es lo que dijimos al principio de esta sección: en el cuerpo de un módulo, `self` es el módulo. Ruby te deja sacar el `self.` y los paréntesis, nada más.
 
 Y lo que hace ese mensaje es solo esto: **generar el getter y el setter**. `energia` y `energia=`. No declara el atributo, no lo inicializa, no lo crea: el atributo va a existir cuando alguien lo setee, como vimos. En la Parte 4 vas a programar `attr_accessor` a mano, y ahí se termina de entender que no tiene nada de primitivo.
 

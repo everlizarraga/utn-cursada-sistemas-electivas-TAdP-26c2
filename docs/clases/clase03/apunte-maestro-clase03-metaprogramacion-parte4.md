@@ -228,7 +228,9 @@ module Defensor
 
 no estás usando una palabra clave. Estás mandando un mensaje, `attr_accessor`, a `Defensor` —al módulo mismo, no a sus instancias—, con dos símbolos como argumentos. Y lo que ese mensaje hace es generar, para cada símbolo, un getter y un setter. Nada más. El atributo no se declara: aparece cuando alguien lo setea.
 
-Vamos a escribir nuestra propia versión, que reciba un solo nombre para no complicarnos. La llamamos `mi_attr_accessor` para no pisar la real. ¿Quién tiene que entenderla? La clase: es a `Guerrero` a quien le vamos a escribir `mi_attr_accessor :apodo` en el cuerpo. Y un método que entiende la clase, con lo que sabés de la clase 2, se define con `def self.`:
+Vamos a escribir nuestra propia versión, que reciba un solo nombre para no complicarnos. La llamamos `mi_attr_accessor` para no pisar la real. ¿Quién tiene que entenderla? **La clase**: es a `Guerrero` a quien le vamos a escribir `mi_attr_accessor :apodo` en el cuerpo, y ya sabés (Parte 2, sección 9) que eso es un mensaje a `self`, y que en el cuerpo de una clase `self` es la clase.
+
+Entonces necesitamos un método que entienda `Guerrero`, no sus instancias. Es lo que en el archivo de la Parte 1 hace `Peloton` con `def self.cobarde`, y ahora podemos leer esa sintaxis con todo lo que sabemos:
 
 ```ruby
 class Guerrero
@@ -237,6 +239,15 @@ class Guerrero
   end
 end
 ```
+
+`def self.mi_attr_accessor` se lee así: "definí `mi_attr_accessor` en el objeto que es `self` **ahora**". Y como estamos en el cuerpo de `Guerrero`, `self` es `Guerrero`. Comparalo con un `def` común: `def descansar` define el método para las instancias —es lo que `atila` va a entender—; `def self.descansar` lo definiría para la clase —es lo que `Guerrero` va a entender—. Una vez definido, se usa mandándole el mensaje a la clase, con o sin receptor explícito:
+
+```ruby
+Guerrero.mi_attr_accessor :apodo    # desde afuera: receptor explícito
+mi_attr_accessor :apodo             # adentro del cuerpo de Guerrero: self implícito, como attr_accessor
+```
+
+Dónde va a parar exactamente un método definido con `def self.` —porque no está ni en `Guerrero` ni en la clase de `Guerrero`— es la pregunta central de la Parte 6. Por ahora, con "es un método que entiende la clase" alcanza.
 
 Ahora, ¿qué tiene que hacer? Generar dos métodos. Empecemos por el getter, que se llama igual que el atributo y devuelve su valor. Definir un método con un nombre que viene en una variable: `define_method`. Leer una variable de instancia por su nombre: `instance_variable_get`.
 

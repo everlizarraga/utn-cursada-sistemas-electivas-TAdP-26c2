@@ -63,7 +63,7 @@ Alguien está a punto de hacer la pregunta correcta: **¿incluso las clases tien
 
 ## 4. Métodos de clase: dónde viven de verdad 🔴
 
-Con la autoclase ya podemos ubicar `crear_vikingo`. Los métodos de clase en Ruby se escriben así, como ya viste en `Peloton`:
+Con la autoclase ya podemos ubicar `crear_vikingo`. Los métodos de clase en Ruby se escriben con `def self.`, como viste en `Peloton` (Parte 1) y en `mi_attr_accessor` (Parte 4):
 
 ```ruby
 class Guerrero
@@ -236,18 +236,20 @@ Y compará con lo que responde `Guerrero.ancestors`, que arranca en `Guerrero`: 
 `define_singleton_method` no es la única. Como la autoclase es una clase, le podés hacer lo que le hacés a cualquier clase: incluirle un mixin, o mandarle `attr_accessor`, que —ya sabés— es un mensaje que entienden los módulos:
 
 ```ruby
-module Saludable
-  def saludar
-    'hola'
+module Presentable
+  def presentarse
+    'un gusto'
   end
 end
 
-atila.singleton_class.include Saludable     # incluir un mixin en la autoclase de atila
-atila.saludar
-# => "hola"
-conan.extend Saludable                      # extend: atajo para "incluí esto en mi autoclase"
-conan.saludar
-# => "hola"
+atila.singleton_class.include Presentable   # incluir un mixin en la autoclase de atila
+atila.presentarse
+# => "un gusto"
+conan.extend Presentable                    # extend: atajo para "incluí esto en mi autoclase"
+conan.presentarse
+# => "un gusto"
+zorro.presentarse
+# NoMethodError                             ← zorro no fue tocado
 
 atila.singleton_class.attr_accessor :edad   # un getter y un setter solo para atila
 atila.edad = 40

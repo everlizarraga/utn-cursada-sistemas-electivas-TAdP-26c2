@@ -133,7 +133,7 @@ atila.nil?
 # => false
 ```
 
-`nil?` está definido para todos los objetos —en `Object`— respondiendo que no, y está redefinido en `NilClass` respondiendo que sí. Herencia y redefinición, nada más. Y como `NilClass` es una clase, es una caja, y tiene su flecha roja:
+`nil?` está definido para todos los objetos —en `Kernel`, el mixin de `Object` donde viven los mensajes básicos— respondiendo que no, y está redefinido en `NilClass` respondiendo que sí. Herencia y redefinición, nada más. Y como `NilClass` es una clase, es una caja, y tiene su flecha roja:
 
 ```ruby
 NilClass.superclass

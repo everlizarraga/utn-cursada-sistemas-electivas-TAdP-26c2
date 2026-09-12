@@ -87,7 +87,7 @@ gem -v
 # Si responde un número, RubyGems está y funciona. No hace falta más.
 ```
 
-**Si `ruby -v` responde con un número que empieza con 2**, o directamente dice que el comando no existe, andá a la sección 3. Ruby 2 está discontinuado y algunos ejemplos que circulan por ahí ni siquiera corren en las versiones viejas o nuevas indistintamente.
+**Si `ruby -v` responde con un número que empieza con 2**, o directamente dice que el comando no existe, andá a la sección 3. Ruby 2 está discontinuado.
 
 > ⚠️ Vas a cruzarte con material viejo que usa una clase llamada `Fixnum` para los números enteros. No existe más: en Ruby 3 los enteros son `Integer`. Si un ejemplo con `Fixnum` te falla, es por eso, no por algo que hiciste mal.
 
@@ -151,7 +151,7 @@ En Windows se usa **RubyInstaller**, que es un instalador gráfico común y corr
 
 1. Entrá a https://rubyinstaller.org/downloads/ y bajá la versión marcada como **"Ruby+Devkit 3.x (x64)"** — la que dice *Devkit*, no la otra. El Devkit es un conjunto de herramientas de compilación que algunas gemas necesitan para instalarse; Pry no lo necesita, pero más adelante otras sí, y es mejor tenerlo desde ahora.
 2. Ejecutá el instalador. En la pantalla de opciones, dejá tildado **"Add Ruby executables to your PATH"**: es lo que hace que `ruby` y `gem` funcionen desde cualquier terminal.
-3. Al terminar, se abre una ventana negra que pregunta qué componentes del Devkit instalar. Apretá **Enter** para aceptar el default. Espera a que termine y cerrá esa ventana.
+3. Al terminar, se abre una ventana negra que pregunta qué componentes del Devkit instalar. Apretá **Enter** para aceptar el default. Esperá a que termine y cerrá esa ventana.
 4. **Abrí una terminal nueva** (las que ya estaban abiertas no ven el Ruby recién instalado) y verificá:
 
 ```powershell

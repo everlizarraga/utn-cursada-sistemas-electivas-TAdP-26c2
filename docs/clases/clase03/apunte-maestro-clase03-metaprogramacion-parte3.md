@@ -84,7 +84,7 @@ Hay un mensaje que entienden todos los objetos, `method`, que recibe un selector
 
 ```ruby
 descansar_de_atila = atila.method(:descansar)
-# => #<Method: Guerrero#descansar() age-clase2.rb:52>
+# => #<Method: Guerrero#descansar() .../age-clase2.rb:52>
 descansar_de_atila.class
 # => Method
 ```
@@ -163,9 +163,11 @@ descansar_de_atila.call
 # => 110                                 ← atila descansó: energía 100 → 110
 
 atila.method(:sufri_danio).call(30)      ← los argumentos van en el call
-# => 80
+# => nil                                 ← ojo: sufri_danio no devuelve la energía. Su última línea es
+                                         #   "self.lastimado if cansado", un if que no se cumplió, y eso vale nil.
+                                         #   El daño se aplicó igual:
 atila.method(:energia).call
-# => 80
+# => 80                                  ← 110 - 30
 ```
 
 Ahora prestá atención, porque acá hay una diferencia de fondo con todo lo anterior. **`call` no es un envío de mensaje.** Cuando hacés `atila.descansar` o `atila.send(:descansar)`, Ruby hace el method lookup: paso azul, pasos rojos, encuentra un método, lo ejecuta. Cuando hacés `descansar_de_atila.call`, **no hay lookup**. Vos ya tenés el método en la mano. Le estás diciendo "ejecutá *este*", no "buscá el que corresponda a este nombre".
@@ -185,7 +187,7 @@ Le pedimos el método `descansar` a `atila`. Pero `descansar` está definido en 
 
 ```ruby
 descansar_de_guerrero = Guerrero.instance_method(:descansar)
-# => #<UnboundMethod: Guerrero#descansar() age-clase2.rb:52>
+# => #<UnboundMethod: Guerrero#descansar() .../age-clase2.rb:52>
 descansar_de_guerrero.class
 # => UnboundMethod
 ```
@@ -220,12 +222,12 @@ De ahí emergen dos operaciones necesarias. Tenés que poder agarrar un método 
 
 ```ruby
 descansar_de_guerrero.bind(atila)
-# => #<Method: Guerrero#descansar() age-clase2.rb:52>      ← ahora es un Method, atado a atila
+# => #<Method: Guerrero#descansar() .../age-clase2.rb:52>      ← ahora es un Method, atado a atila
 descansar_de_guerrero.bind(atila).call
 # => 90                                                     ← y se puede ejecutar
 
 descansar_de_atila.unbind
-# => #<UnboundMethod: Guerrero#descansar() age-clase2.rb:52>  ← la versión suelta
+# => #<UnboundMethod: Guerrero#descansar() .../age-clase2.rb:52>  ← la versión suelta
 ```
 
 Una cosa importante sobre las dos: **no tienen efecto.** No cambian nada. Vincular el método suelto a `atila` no hace que el método de `Guerrero` ahora sea de `atila` y los demás guerreros lo pierdan. Desvincular el método de `atila` no lo rompe ni lo saca de `atila`:
@@ -238,17 +240,12 @@ descansar_de_atila.call
 
 `Method` y `UnboundMethod` **representan** el método; no **son** el método. Son lentes. `bind` te da un lente nuevo con un objeto puesto; `unbind` te da un lente nuevo sin objeto. El método real, en `Guerrero`, ni se entera.
 
-Y las dos clases están emparentadas de la forma que esperarías:
+Y conceptualmente están emparentadas de la forma que esperarías: un método vinculado es un caso particular de método suelto, que agrega una sola cosa, a quién está vinculado.
 
-```ruby
-Method.superclass
-# => UnboundMethod
-```
-
-Un método vinculado es un caso particular de método: lo único que agrega es a quién está vinculado.
+> ⚠️ Así se presenta en clase, y así conviene pensarlo. Pero si lo probás en la consola, el Ruby real **no** las hace heredar una de otra: `Method.superclass` da `Object`, igual que `UnboundMethod.superclass`. Son dos clases hermanas con interfaces parecidas. Para el examen, la relación conceptual (vinculado = suelto + receptor) es lo que importa; no te sorprendas si la consola te dice otra cosa.
 
 > **Para el parcial, si te preguntan:** *¿Qué diferencia hay entre `Method` y `UnboundMethod`?*
-> Son dos representaciones del mismo método. `Method` se obtiene desde una instancia (`atila.method(:x)`) y está vinculado a ella: sabe sobre quién ejecutarse, por eso entiende `call`. `UnboundMethod` se obtiene desde la clase (`Guerrero.instance_method(:x)`) y no está vinculado a ningún objeto: puede responder sus parámetros y su dueño, pero no puede ejecutarse. Se pasa de uno a otro con `bind(objeto)` y `unbind`, que devuelven una representación nueva sin modificar el método real. `Method` hereda de `UnboundMethod`.
+> Son dos representaciones del mismo método. `Method` se obtiene desde una instancia (`atila.method(:x)`) y está vinculado a ella: sabe sobre quién ejecutarse, por eso entiende `call`. `UnboundMethod` se obtiene desde la clase (`Guerrero.instance_method(:x)`) y no está vinculado a ningún objeto: puede responder sus parámetros y su dueño, pero no puede ejecutarse. Se pasa de uno a otro con `bind(objeto)` y `unbind`, que devuelven una representación nueva sin modificar el método real. Conceptualmente, un `Method` es un `UnboundMethod` más el objeto al que está vinculado.
 
 ---
 
