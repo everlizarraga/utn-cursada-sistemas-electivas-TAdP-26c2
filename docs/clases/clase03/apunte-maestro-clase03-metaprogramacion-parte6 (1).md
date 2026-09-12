@@ -108,12 +108,16 @@ Guerrero.singleton_class.instance_methods(false)
 
 Ahí están. `def self.` **define el método en la autoclase de la clase**. En los diagramas la vamos a llamar `#Guerrero`.
 
-En la Parte 4 vimos `define_singleton_method`; ahora sabemos qué hace en realidad: **definir el método dentro de la autoclase**. Es un atajo. Estas dos líneas son exactamente lo mismo:
+Y así como `def` tiene su versión dinámica en `define_method` (Parte 4), `def self.` tiene la suya: **`define_singleton_method`**. Recibe lo mismo —un selector como valor y un bloque— y define el método **en la autoclase del receptor**. Es un atajo: estas dos líneas son exactamente lo mismo:
 
 ```ruby
-Guerrero.define_singleton_method(:gritar_fuerte) { 'HAAAA' }
+Guerrero.define_singleton_method(:gritar_fuerte) { 'HAAAA' }        # el atajo
 Guerrero.singleton_class.define_method(:gritar_fuerte) { 'HAAAA' }   # lo que hace por atrás
+Guerrero.gritar_fuerte
+# => "HAAAA"
 ```
+
+Fijate la segunda línea: es el `define_method` que ya conocés, mandado a la autoclase en vez de a la clase. Todo lo que aprendiste en la Parte 4 sobre `define_method` —nombre dinámico, bloque que retiene contexto— vale igual acá.
 
 > **Para el parcial, si te preguntan:** *¿Dónde queda definido un método escrito con `def self.metodo` dentro de una clase? ¿Por qué no en la clase ni en `Class`?*
 > En la singleton class (autoclase) de esa clase: una clase dedicada exclusivamente a ese objeto. No queda en la clase porque lo que se define ahí lo entienden sus instancias, no la clase. No queda en `Class` porque lo entenderían todas las clases del sistema. La autoclase es el lugar intermedio, propio de un único objeto, donde el lookup busca antes que en cualquier otro lado.
