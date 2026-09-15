@@ -694,7 +694,7 @@ Sin respuestas.
 
 Con esto termina la clase desde cero. Lo que corresponde ahora, en orden:
 
-1. **Abrí el repo de tu cursada** y leé `src/1_registrador_de_mensajes.rb` hasta `src/6_tests.rb` de corrido, con el mapa de la sección 9 al lado. Si alguna línea no te cierra, este es el módulo donde está explicada: archivo 1 → módulo 2 · archivo 2 → módulos 3 y 4 · archivo 3 → módulo 4 · archivo 4 → módulo 5 · archivos 5 y 6 → módulo 6.
+1. **Abrí el repo de tu cursada** y leé los archivos de `src/` de corrido, del `1_registrador_de_mensajes.rb` al `6_tests.rb`, con el mapa de la sección 9 al lado. Ojo que el 6 son dos archivos: `6_framework_tests.rb` es el framework (contra ese está hecho el mapa) y `6_tests.rb` son los tests que lo usan. Si alguna línea no te cierra, este es el módulo donde está explicada: archivo 1 → módulo 2 · archivo 2 → módulos 3 y 4 · archivo 3 → módulo 4 · archivo 4 → módulo 5 · archivos 5 y 6 → módulo 6.
 2. **Corré los checkpoints** de los seis módulos en la consola. Las respuestas se arman en el complemento cuando cerremos la unidad.
 3. **Practicá escribiendo**, no leyendo: reescribí `objeto`, `clase` y el framework de memoria, y agregales `deny`. Cuando te salga sin mirar, ya está.
 

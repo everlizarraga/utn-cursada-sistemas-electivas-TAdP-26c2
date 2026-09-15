@@ -459,7 +459,7 @@ Sin respuestas.
 6. En el registrador, `is_a?` daba `false` aun con `respond_to_missing?` definido. ¿Por qué `is_a?` no llegaba a `method_missing`, y dónde vive `is_a?`?
 7. ¿Qué tiene `BasicObject` que no tiene `Object`, o mejor dicho, qué *no* tiene? ¿Para qué tipo de objeto lo elegirías?
 8. Después de `< BasicObject`, `registrador.respond_to?(:mensajes_recibidos)` da `false` aunque el método exista. Explicá por qué y decidí si es un bug o un trade-off aceptable para un registrador.
-9. En el combate, dos de los cinco mensajes registrados los mandó el misil. ¿Por qué el registrador los vio, si `hacer_combatir` nunca escribió `potencial_defensivo`?
+9. En el combate, tres de los cinco mensajes registrados los mandó el misil (los dos `potencial_defensivo` y el `sufri_danio`). ¿Por qué el registrador los vio, si `hacer_combatir` nunca escribió ninguno de los tres?
 
 ---
 
