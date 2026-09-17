@@ -559,23 +559,28 @@ La privacidad en Ruby es una sensación: existe para que no lo hagas por acciden
 
 ---
 
-## 12. La caja de herramientas hasta acá 🔴
+## 12. Caja de herramientas de la Parte 2 🔴
 
-Todo lo de esta parte, en una tabla. Fijate que son pocos mensajes, y con esos pocos se descubre todo.
+Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho.
 
-| Quiero saber... | Se lo pregunto a... | Mensaje | Responde |
-|---|---|---|---|
-| de qué clase es un objeto | el objeto | `class` | la clase (un objeto) |
-| si un objeto es de cierto tipo | el objeto | `is_a?(Tipo)` | `true`/`false` |
-| qué mensajes entiende un objeto | el objeto | `methods` | lista de selectores |
-| qué métodos provee una clase a sus instancias | la clase | `instance_methods` / `instance_methods(false)` | lista de selectores |
-| de quién hereda una clase | la clase | `superclass` | la superclase |
-| en qué orden se busca un método | la clase o módulo | `ancestors` | la linearización |
-| si algo es un mixin | el módulo | `class` | `Module` |
-| qué variables tiene un objeto ahora | el objeto | `instance_variables` | lista de símbolos con `@` |
-| el valor de una variable, sin getter | el objeto | `instance_variable_get(:@x)` | el valor |
-| cambiar una variable, sin setter | el objeto | `instance_variable_set(:@x, v)` | el valor nuevo |
-| mandar un mensaje cuyo nombre es un valor | el objeto | `send(:selector)` | lo que responda el método |
+| Quiero... | Se lo mando a... | Mensaje | Responde | Probalo |
+|---|---|---|---|---|
+| saber de qué clase es un objeto | el objeto | `class` | la clase (un objeto, no un nombre) | `atila.class` |
+| el nombre de una clase como texto | la clase | `name` | un string | `atila.class.name` |
+| saber si un objeto es de cierto tipo (clase, superclase o mixin) | el objeto | `is_a?(Tipo)` | `true` / `false` | `atila.is_a?(Atacante)` |
+| pasar de símbolo a string, y al revés | el símbolo / el string | `to_s` / `to_sym` | un string / un símbolo | `:descansar.to_s` · `"descansar".to_sym` |
+| saber qué mensajes entiende un objeto | el objeto | `methods` | lista de selectores (símbolos) | `atila.methods` |
+| saber qué métodos provee una clase a sus instancias | la clase | `instance_methods` | lista de selectores, heredados incluidos | `Guerrero.instance_methods` |
+| solo los definidos en esa clase, sin los heredados | la clase | `instance_methods(false)` | lista corta | `Guerrero.instance_methods(false)` |
+| saber de quién hereda una clase | la clase | `superclass` | la superclase (salta los mixins) | `Guerrero.superclass` |
+| ver en qué orden se busca un método (linearización) | la clase o el módulo | `ancestors` | lista: ella misma, mixins, superclase, ... | `Guerrero.ancestors` |
+| saber si algo es un mixin | el módulo | `class` | `Module` (una clase da `Class`) | `Atacante.class` |
+| ver qué variables de instancia tiene un objeto **ahora** | el objeto | `instance_variables` | símbolos con `@` | `atila.instance_variables` |
+| leer una variable sin pasar por el getter | el objeto | `instance_variable_get(:@x)` | el valor (el `@` es obligatorio) | `atila.instance_variable_get(:@energia)` |
+| escribir una variable sin pasar por el setter | el objeto | `instance_variable_set(:@x, v)` | el valor nuevo | `atila.instance_variable_set(:@energia, 80)` |
+| llamar al setter (es un método que se llama `x=`) | el objeto | `x = v` (azúcar de `x=(v)`) | el valor | `atila.energia = 80` |
+| mandar un mensaje cuyo nombre es un valor | el objeto | `send(:selector, args)` | lo que responda el método | `atila.send(:descansar)` |
+| lo mismo, con el selector guardado en una variable | el objeto | `send(variable)` | ídem | `s = :descansar; atila.send(s)` |
 
 Con esto queda cubierto lo básico de introspection: descubrir de dónde le viene el comportamiento a un objeto, qué estado tiene, y cómo interactuar con él sin hardcodear nada. La Parte 3 formaliza el recorrido que Ruby hace para encontrar un método, y después obtiene el método en sí —no el nombre— como un objeto al que se le pueden hacer preguntas.
 

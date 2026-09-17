@@ -325,6 +325,26 @@ Si quisieras programar *traits*, ya tenés las herramientas para meterle traits 
 
 ---
 
+## 7. Caja de herramientas de la Parte 4 🔴
+
+Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho. Acá hay menos mensajes y más construcciones: la columna "Mensaje" trae la forma.
+
+| Quiero... | Se lo mando a... | Mensaje o construcción | Efecto | Probalo |
+|---|---|---|---|---|
+| agregar un método a una clase que ya existe | la clase (reabriéndola) | `class X; def m; ...; end; end` | todas las instancias lo entienden, viejas y nuevas | `class String; def importante; self + '!'; end; end` |
+| pisar un método existente | la clase | el mismo `def` con el mismo nombre | reemplaza al anterior; firma = solo el nombre | `class Guerrero; def descansar; self.energia += 1000; end; end` |
+| definir un método cuyo nombre es un valor | la clase | `define_method(:selector) { cuerpo }` | igual que `def`, pero el selector es un símbolo y el cuerpo un bloque | `Guerrero.define_method(:hola) { 'hola' }` |
+| armar un selector a partir de un string | un string | `"...#{x}...".to_sym` | un símbolo | `"comete_una_#{comida}".to_sym` |
+| armar el nombre de una variable de instancia | un string | `"@#{attr}".to_sym` | `:@attr` | `"@#{:apodo}".to_sym` |
+| que el cuerpo use una variable de afuera | el bloque | cualquier variable local visible al escribir el bloque | el bloque la retiene (con `def` no se puede) | `bonus = 30; Guerrero.define_method(:b) { self.energia += bonus }` |
+| definir un método que entienda **la clase**, no sus instancias | la clase, en su cuerpo | `def self.m; ...; end` | lo entiende `X`, no `X.new` | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| un getter y un setter a mano | la clase | `define_method` + `instance_variable_get` / `_set` | lo que hace `attr_accessor` | ver §5, `mi_attr_accessor` completo |
+| averiguar la clase de algo del lenguaje antes de abrirla | el valor | `class` | la clase a reabrir | `2.class` |
+| volver a un estado limpio después de romper la sesión | la terminal | `exit` · `pry` · `require_relative` | sesión nueva | `exit` |
+
+---
+
+
 ## Qué sigue
 
 Ya podés modificar el programa en marcha: abrir clases, agregar y pisar métodos, construir métodos con nombres dinámicos, y programar cosas que parecían primitivas. Lo que te falta es el mapa: el diagrama de la Parte 3 quedó incompleto, con cajas sin flecha roja y cajas sin flecha azul. La Parte 5 lo completa, y al hacerlo descubre qué es una clase, qué es un módulo, y dónde termina todo.

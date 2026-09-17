@@ -329,6 +329,33 @@ Pero Ruby tiene **un feature más**, uno que en otras tecnologías no está. Ya 
 
 ---
 
+## 8. Caja de herramientas de la Parte 5 🔴
+
+Esta parte no introduce mensajes nuevos: usa `class`, `superclass` e `instance_methods(false)` sobre las cajas del metamodelo. La tabla es el mapa de **qué preguntar para descubrir cada pieza**, con el resultado al lado.
+
+| Quiero descubrir... | Se lo mando a... | Mensaje | Responde | Probalo |
+|---|---|---|---|---|
+| de qué clase es una clase | la clase | `class` | `Class` | `Guerrero.class` |
+| qué provee `Class` (dónde vive `new`) | `Class` | `instance_methods(false)` | incluye `:new`, `:superclass`, `:allocate` | `Class.instance_methods(false)` |
+| la superclase de `Object` | `Object` | `superclass` | `BasicObject` | `Object.superclass` |
+| qué tiene `BasicObject` | `BasicObject` | `instance_methods(false)` | ocho métodos, ni siquiera `class` | `BasicObject.instance_methods(false)` |
+| dónde termina la herencia | `BasicObject` | `superclass` | `nil` (el punto de corte) | `BasicObject.superclass` |
+| la clase de `nil` | `nil` | `class` | `NilClass` | `nil.class` |
+| de quién hereda `NilClass` | `NilClass` | `superclass` | `Object` | `NilClass.superclass` |
+| de quién hereda `Class` | `Class` | `superclass` | `Module` (una clase es un módulo instanciable) | `Class.superclass` |
+| de quién hereda `Module` | `Module` | `superclass` | `Object` (un módulo es un objeto) | `Module.superclass` |
+| si `new` está en `Class` y no en `Module` | `Class` / `Module` | `instance_methods(false).include?(:new)` | `true` / `false` | `Module.instance_methods(false).include?(:new)` |
+| dónde viven `attr_accessor` y `define_method` | `Module` | `instance_methods(false).include?(:x)` | `true` | `Module.instance_methods(false).include?(:attr_accessor)` |
+| la clase de `Class` (el loop) | `Class` | `class` | `Class` | `Class.class` |
+| la clase de cualquier caja | la caja | `class` | siempre `Class` | `Object.class` · `Module.class` |
+| que una instancia no llega a los métodos de clase | el objeto | `new` | `NoMethodError` | `atila.new` |
+| que los números se cablean igual | un número / su clase | `class` / `superclass` | `Integer` / `Class` / `Numeric` | `2.class` · `Integer.class` · `Integer.superclass` |
+
+Y la regla práctica de la sección 4, que es lo que más vas a usar: lógica para **todos los objetos** → `Object`; para **todas las clases** → `Class`; para **todo lo que define comportamiento** (clases y módulos) → `Module`.
+
+---
+
+
 ### Antes de seguir, tres preguntas para vos
 
 1. `Module → Object` es una flecha roja. ¿Qué significa exactamente y qué **no** significa?

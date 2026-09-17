@@ -349,6 +349,27 @@ Pry, para poder mostrarte los objetos bonitos, le agrega un módulo propio a **t
 
 ---
 
+## 9. Caja de herramientas de la Parte 0 🟡
+
+Todo lo que esta parte usó, en una tabla para tener al lado. La última columna es lo que tipeás, tal cual.
+
+| Quiero... | Dónde lo escribo | Comando | Qué esperar | Tipealo |
+|---|---|---|---|---|
+| ver qué Ruby tengo | terminal | `ruby -v` | `ruby 3.x.x ...` | `ruby -v` |
+| ver si RubyGems funciona | terminal | `gem -v` | un número de versión | `gem -v` |
+| saber cuál Ruby se ejecuta (Mac) | terminal | `which ruby` | una ruta; si es `/usr/bin/ruby`, es el del sistema | `which ruby` |
+| instalar una gema | terminal | `gem install NOMBRE` | `Successfully installed ...` | `gem install pry` |
+| abrir la consola | terminal, **parado en la carpeta del archivo** | `pry` | el prompt `[1] pry(main)>` | `pry` |
+| cargar el programa en la sesión | Pry | `require_relative 'ARCHIVO'` | `=> true` | `require_relative 'age-clase2'` |
+| crear un objeto para trabajar | Pry | `Clase.new` | el objeto con su estado | `atila = Guerrero.new` |
+| apagar el paginador de listas largas | Pry | `Pry.config.pager = false` | `=> false` | `Pry.config.pager = false` |
+| salir del paginador sin apagarlo | Pry (cuando ves `:`) | tecla `q` | vuelve el prompt | `q` |
+| salir de la consola | Pry | `exit` | vuelve la terminal | `exit` |
+| ver los cambios de un archivo que edité | terminal + Pry | `exit`, `pry`, volver a cargar | sesión nueva con el archivo actualizado | `exit` · `pry` · `require_relative 'age-clase2'` |
+| una terminal sin salir de RubyMine | RubyMine | View → Tool Windows → Terminal | una terminal parada en el proyecto | `⌥F12` (Mac) / `Alt+F12` (Windows) |
+
+---
+
 ## Estás listo
 
 Si llegaste hasta acá con:

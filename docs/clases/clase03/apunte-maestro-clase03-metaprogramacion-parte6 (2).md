@@ -397,6 +397,71 @@ Lo que se dijo en clase que afecta a la cursada, todo junto:
 
 ---
 
+## 11. Caja de herramientas de la Parte 6 🔴
+
+Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho.
+
+| Quiero... | Se lo mando a... | Mensaje o construcción | Responde / efecto | Probalo |
+|---|---|---|---|---|
+| la autoclase de cualquier objeto (se crea si no existía) | el objeto | `singleton_class` | `#<Class:...>` | `atila.singleton_class` · `Guerrero.singleton_class` |
+| definir un método de clase | la clase, en su cuerpo | `def self.m; ...; end` | queda en la autoclase de la clase | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| definir un método para **un solo objeto**, con nombre dinámico | el objeto (o la clase) | `define_singleton_method(:sel) { cuerpo }` | queda en su autoclase | `atila.define_singleton_method(:saludar) { 'hola' }` |
+| lo mismo, escrito largo | la autoclase | `singleton_class.define_method(:sel) { }` | ídem | `atila.singleton_class.define_method(:saludar) { 'hola' }` |
+| ver qué métodos propios tiene un objeto o una clase | la autoclase | `singleton_class.instance_methods(false)` | los selectores que solo él entiende | `Guerrero.singleton_class.instance_methods(false)` |
+| la superclase de una autoclase | la autoclase | `singleton_class.superclass` | la autoclase de la superclase (clases) · la clase (instancias) | `Guerrero.singleton_class.superclass` · `atila.singleton_class.superclass` |
+| el method lookup **completo** de un objeto | la autoclase | `singleton_class.ancestors` | la linearización empezando por la autoclase | `atila.singleton_class.ancestors` |
+| incluir un mixin en un solo objeto | la autoclase | `singleton_class.include Mixin` | solo ese objeto lo entiende | `atila.singleton_class.include Presentable` |
+| lo mismo, con atajo | el objeto | `extend Mixin` | ídem | `conan.extend Presentable` |
+| un getter y un setter para un solo objeto | la autoclase | `singleton_class.attr_accessor :x` | solo ese objeto tiene `x` y `x=` | `atila.singleton_class.attr_accessor :edad` |
+| comprobar que la autoclase hereda `new` por la cadena | la autoclase de una clase | `singleton_class.instance_methods.include?(:new)` | `true` | `Guerrero.singleton_class.instance_methods.include?(:new)` |
+| la autoclase de `nil` (caso especial) | `nil` | `singleton_class` | `NilClass` | `nil.singleton_class` |
+
+Y la regla que reemplaza a la de la Parte 3: **method lookup = un paso verde (`singleton_class`) + n pasos rojos (`superclass`)**, corte en `nil`.
+
+---
+
+## 12. Caja de herramientas de toda la clase 🔴
+
+Las seis tablas anteriores, juntas, para el día que te sentás a practicar sin releer nada. Sesión nueva: `pry`, `require_relative 'age-clase2'`, `atila = Guerrero.new`, `conan = Guerrero.new`, `zorro = Espadachin.new(Espada.new(30))`.
+
+| Parte | Quiero... | Mensaje | Responde | Probalo |
+|---|---|---|---|---|
+| 0 | cargar el programa | `require_relative 'archivo'` | `=> true` | `require_relative 'age-clase2'` |
+| 0 | apagar el paginador | `Pry.config.pager = false` | `=> false` | `Pry.config.pager = false` |
+| 0 | salir / reiniciar la sesión | `exit` | vuelve la terminal | `exit` |
+| 2 | de qué clase es un objeto | `class` | la clase (un objeto) | `atila.class` |
+| 2 | si es de cierto tipo | `is_a?(Tipo)` | `true`/`false` | `atila.is_a?(Atacante)` |
+| 2 | símbolo ↔ string | `to_s` / `to_sym` | string / símbolo | `"descansar".to_sym` |
+| 2 | qué mensajes entiende un objeto | `methods` | selectores | `atila.methods` |
+| 2 | qué provee una clase (solo lo propio) | `instance_methods(false)` | selectores | `Guerrero.instance_methods(false)` |
+| 2 | de quién hereda | `superclass` | la superclase | `Guerrero.superclass` |
+| 2 | orden de búsqueda | `ancestors` | la linearización | `Guerrero.ancestors` |
+| 2 | si es un mixin | `class` | `Module` | `Atacante.class` |
+| 2 | variables de instancia actuales | `instance_variables` | símbolos con `@` | `atila.instance_variables` |
+| 2 | leer / escribir una variable sin getter ni setter | `instance_variable_get(:@x)` / `_set(:@x, v)` | el valor | `atila.instance_variable_get(:@energia)` |
+| 2 | llamar al setter | `x = v` | el valor | `atila.energia = 80` |
+| 2 | mandar un mensaje cuyo nombre es un valor | `send(:sel, args)` | lo que responda | `atila.send(:descansar)` |
+| 3 | el método como objeto (vinculado) | `method(:sel)` | `Method` | `atila.method(:descansar)` |
+| 3 | el método suelto | `instance_method(:sel)` | `UnboundMethod` | `Guerrero.instance_method(:descansar)` |
+| 3 | parámetros / cantidad / dueño / receptor | `parameters` / `arity` / `owner` / `receiver` | lista / número / módulo / objeto | `atila.method(:atacar).owner` |
+| 3 | ejecutar sin lookup | `call(args)` | lo que devuelva | `atila.method(:sufri_danio).call(30)` |
+| 3 | atar / soltar | `bind(obj)` / `unbind` | `Method` / `UnboundMethod` nuevos | `Guerrero.instance_method(:descansar).bind(atila).call` |
+| 4 | agregar o pisar un método en una clase existente | `class X; def m; end; end` | retroactivo; mismo nombre pisa | `class String; def importante; self + '!'; end; end` |
+| 4 | definir un método con nombre dinámico | `define_method(:sel) { }` | el selector | `Guerrero.define_method(:hola) { 'hola' }` |
+| 4 | armar un selector / un nombre de variable | `"...".to_sym` / `"@#{attr}".to_sym` | símbolo | `"@#{:apodo}".to_sym` |
+| 4 | método que entiende la clase | `def self.m` | queda en la autoclase | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| 5 | recorrer el metamodelo hacia arriba | `superclass` encadenado | `Object`, `BasicObject`, `nil` | `Object.superclass.superclass` |
+| 5 | la clase de una clase / el loop | `class` | `Class` | `Class.class` |
+| 5 | qué es `Class` respecto de `Module` | `Class.superclass` | `Module` | `Class.superclass` |
+| 5 | dónde vive `new` / `attr_accessor` | `X.instance_methods(false).include?(:m)` | `true`/`false` | `Module.instance_methods(false).include?(:attr_accessor)` |
+| 6 | la autoclase | `singleton_class` | `#<Class:...>` | `atila.singleton_class` |
+| 6 | un método para un solo objeto | `define_singleton_method(:sel) { }` | queda en su autoclase | `atila.define_singleton_method(:saludar) { 'hola' }` |
+| 6 | métodos propios / superclase / lookup completo | `singleton_class.instance_methods(false)` / `.superclass` / `.ancestors` | selectores / caja / linearización | `atila.singleton_class.ancestors` |
+| 6 | un mixin o un accessor para un solo objeto | `extend M` · `singleton_class.attr_accessor :x` | solo ese objeto | `conan.extend Presentable` |
+
+---
+
+
 ## Checkpoint de la clase 03
 
 Diez preguntas sobre toda la clase, sin respuestas. Si podés responderlas sin mirar el apunte, la clase está entendida. Si alguna no sale, es la señal de qué releer.

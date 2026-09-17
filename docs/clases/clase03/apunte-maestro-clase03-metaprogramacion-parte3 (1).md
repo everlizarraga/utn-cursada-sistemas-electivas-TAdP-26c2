@@ -330,6 +330,33 @@ Tiene lógica: un mixin ya tiene que estar preparado para proveerle métodos a c
 
 ---
 
+## 6. Caja de herramientas de la Parte 3 🔴
+
+Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho.
+
+| Quiero... | Se lo mando a... | Mensaje | Responde | Probalo |
+|---|---|---|---|---|
+| el método como objeto, atado a una instancia | el objeto | `method(:selector)` | un `Method` (vinculado) | `atila.method(:descansar)` |
+| el método suelto, sin objeto | la clase o el módulo | `instance_method(:selector)` | un `UnboundMethod` | `Guerrero.instance_method(:descansar)` |
+| qué parámetros recibe y de qué tipo | el `Method` o `UnboundMethod` | `parameters` | lista de `[:req/:opt/:rest, nombre]` | `atila.method(:sufri_danio).parameters` |
+| cuántos parámetros recibe | el `Method` o `UnboundMethod` | `arity` | un número (negativo si hay opcionales) | `atila.method(:initialize).arity` |
+| en qué clase o módulo está definido | el `Method` o `UnboundMethod` | `owner` | la clase o el módulo dueño | `atila.method(:atacar).owner` |
+| a qué objeto está atado | el `Method` | `receiver` | el objeto | `atila.method(:descansar).receiver` |
+| ejecutarlo **sin method lookup** | el `Method` | `call(args)` | lo que devuelva el método | `atila.method(:sufri_danio).call(30)` |
+| atar un método suelto a un objeto | el `UnboundMethod` | `bind(objeto)` | un `Method` nuevo (no cambia nada) | `Guerrero.instance_method(:descansar).bind(atila)` |
+| soltar un método atado | el `Method` | `unbind` | un `UnboundMethod` nuevo (no cambia nada) | `atila.method(:descansar).unbind` |
+| ejecutar un método donde el lookup no llegaría | el `UnboundMethod` | `bind(objeto).call` | lo que devuelva | `Padre.instance_method(:correr).bind(h).call` |
+| poner un método en cualquier objeto, sin restricción de jerarquía | un `UnboundMethod` **de un módulo** | `bind(cualquiera).call` | funciona aunque el objeto no incluya el módulo | `Colorido.instance_method(:color).bind(atila).call` |
+
+Y las tres cosas que no son mensajes pero hay que tener a mano:
+
+- **Method lookup:** un paso azul (`class`, mirando también los mixins de esa clase en su linearización) + n pasos rojos (`superclass`). Termina cuando no hay más flecha roja.
+- **Regla 1:** todo lo que recibe mensajes tiene una flecha azul. **Regla 2:** todo proveedor de comportamiento tiene una flecha roja.
+- **`bind` solo acepta** instancias de la clase dueña del método o de sus subclases; si el dueño es un módulo, acepta cualquier objeto.
+
+---
+
+
 ## Qué sigue
 
 Hasta acá, todo lo que hicimos es **consultar** (y ejecutar, que no cambia la estructura del programa). Sabés cómo Ruby busca un método, sabés obtener un método como objeto, sabés interrogarlo y sabés ejecutarlo donde quieras. Lo que no hicimos todavía es **modificar** el programa: agregarle métodos a una clase que ya existe, pisarlos, construirlos con nombres que no conocés de antemano. Eso es la Parte 4, y es donde Ruby se separa de casi todos los demás.
