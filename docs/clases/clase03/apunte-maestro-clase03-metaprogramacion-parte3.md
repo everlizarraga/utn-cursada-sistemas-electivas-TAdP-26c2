@@ -524,7 +524,7 @@ Desde la clase, la definición vieja **desapareció**: ningún envío de mensaje
 
 ## 7. Caja de herramientas de la Parte 3 🔴
 
-Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho.
+Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` y `conan = Guerrero.new` hechos (las de las secciones 4 y 5 necesitan además `Padre`, `Hijo`, `h` y `Colorido`).
 
 | Quiero... | Se lo mando a... | Mensaje | Responde | Probalo |
 |---|---|---|---|---|

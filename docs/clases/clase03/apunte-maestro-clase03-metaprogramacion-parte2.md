@@ -150,7 +150,9 @@ Las dos listas coinciden, pero las preguntas son distintas:
 | `methods` | un objeto cualquiera (`atila`) | **¿Qué mensajes te puedo mandar a vos?** |
 | `instance_methods` | una clase (`Guerrero`) | **¿Qué mensajes les das a tus instancias?** |
 
-`atila` responde los métodos que **él entiende**. `Guerrero` responde los métodos que **él provee**, en su rol de proveedor de comportamiento. Por eso `atila` no entiende `instance_methods` —no le provee métodos a nadie— y `Guerrero` sí:
+`atila` responde los métodos que **él entiende**. `Guerrero` responde los métodos que **él provee**, en su rol de proveedor de comportamiento. Las dos listas coinciden **hoy** porque todo lo que `atila` entiende se lo da su clase; en la Parte 6 vas a ver que un objeto puede tener métodos que su clase no provee, y ahí dejan de coincidir. Son dos preguntas distintas que casualmente tienen la misma respuesta.
+
+Por eso `atila` no entiende `instance_methods` —no le provee métodos a nadie— y `Guerrero` sí:
 
 ```ruby
 atila.instance_methods
@@ -159,7 +161,7 @@ atila.instance_methods
 
 ### El flag `false`
 
-`instance_methods` sin argumento te trae todo: lo que Guerrero define y lo que hereda. Si querés **solo lo que está definido en esa clase**, sin lo de más arriba, le pasás `false`:
+`instance_methods` sin argumento te trae todo: lo que Guerrero define y lo que hereda de sus mixins y superclases. Si querés **solo lo que está escrito en esa clase**, sin lo de más arriba, le pasás `false`:
 
 ```ruby
 atila.class.instance_methods(false)
@@ -167,7 +169,33 @@ atila.class.instance_methods(false)
 #    (el orden en que aparecen puede variar según la versión de Ruby; el conjunto es el mismo)
 ```
 
-Ocho métodos, y son exactamente los que Guerrero define en su cuerpo: los dos alias, `descansar`, `lastimado`, `sufri_danio`, `cansado`, y el getter y setter que genera `attr_accessor :peloton`. No están `energia` ni `atacar`, porque esos vienen de los mixins.
+Ocho métodos, y la lista sorprende un poco: no está `energia`, que `atila` entiende perfectamente, y sí están `descansar` y `sufri_danio`, que también existen en `Defensor`. Cada uno tiene su explicación, y vale la pena verlas porque son las cuatro formas en que un nombre llega a una clase:
+
+| Selector | Por qué está en `Guerrero` |
+|---|---|
+| `peloton`, `peloton=` | los genera `attr_accessor :peloton`, escrito en el cuerpo de `Guerrero` |
+| `lastimado`, `cansado` | definidos solo en `Guerrero` |
+| `sufri_danio`, `descansar` | `Defensor` también los tiene, pero `Guerrero` los **redefine** con su propio `def` |
+| `descansar_atacante`, `descansar_defensor` | los crea `alias_method` **en la clase donde se llama**, aunque el código venga de un mixin |
+
+Y `energia` no está porque `attr_accessor :energia` está escrito dentro de `module Defensor`, no dentro de `class Guerrero`. `false` significa "sin ancestros", y los mixins **son ancestros**: quedan afuera igual que `Object`. Preguntale al mixin y ahí aparece:
+
+```ruby
+Defensor.instance_methods(false)
+# => [:descansar, :potencial_defensivo=, :energia, :potencial_defensivo, :energia=, :sufri_danio]
+#    ← energia y energia= viven acá
+Guerrero.instance_methods.include?(:energia)
+# => true                    ← sin el false, sí aparece: atila la entiende, la recibe de Defensor
+```
+
+*(Tampoco aparece `initialize`, aunque está escrito en `Guerrero`: Ruby lo hace privado, e `instance_methods` lista solo los públicos.)*
+
+En resumen, `instance_methods(false)` responde **"¿qué está escrito acá?"**, e `instance_methods` sin argumento responde **"¿qué entienden tus instancias, venga de donde venga?"**. El mismo `false` se le puede pasar a `methods`, y significa lo mismo: solo lo propio del objeto, sin lo que le llega de su clase.
+
+```ruby
+atila.methods(false)
+# => []                      ← atila no tiene nada propio: todo lo que entiende se lo da Guerrero (Parte 6)
+```
 
 ### Una queja justificada sobre los nombres
 
@@ -176,7 +204,7 @@ Acá hay algo que conviene decir de entrada, porque Ruby nombra mal estas operac
 A esos nombres los vamos a llamar **selectores**: el selector es el nombre con el que seleccionás un método. `methods` e `instance_methods` devuelven **listas de selectores**. En la Parte 3 vas a ver cómo pedir el método de verdad.
 
 > **Para el parcial, si te preguntan:** *¿Qué diferencia hay entre `methods` e `instance_methods`?*
-> `methods` se le manda a un objeto y responde los selectores de los mensajes que ese objeto entiende. `instance_methods` se le manda a una clase (o módulo) y responde los selectores que esa clase provee a sus instancias. Un objeto común no entiende `instance_methods` porque no provee comportamiento a nadie. Con `instance_methods(false)` se obtienen solo los definidos en esa clase, sin los heredados.
+> `methods` se le manda a un objeto y responde los selectores de los mensajes que ese objeto entiende. `instance_methods` se le manda a una clase (o módulo) y responde los selectores que esa clase provee a sus instancias. Un objeto común no entiende `instance_methods` porque no provee comportamiento a nadie. Con `instance_methods(false)` se obtienen solo los escritos en esa clase, sin los heredados de superclases ni de mixins.
 
 ---
 
@@ -346,7 +374,7 @@ Dos cosas para llevarte de este ejercicio.
 
 Además de métodos, un objeto tiene **estado**. Y acá Ruby es particularmente generoso, tanto que hay que romper un marco conceptual que traés de otros lenguajes.
 
-Mirá el archivo de la Parte 1: en ningún lugar dice "un guerrero tiene un atributo llamado energía". Declaramos `attr_accessor :energia`, que genera el getter y el setter. Pero el atributo en sí, la variable de instancia `@energia`, nunca se declaró. **En Ruby los atributos no se declaran.** Cualquier variable de instancia por la que preguntes, está. Si nunca la seteaste, vale `nil`; en el momento en que la seteás, existe. A diferencia de Java o de Wollok, donde primero declarás qué atributos tiene la clase y después los usás.
+Mirá el archivo de la Parte 1: en ningún lugar dice "un guerrero tiene un atributo llamado energía". Declaramos `attr_accessor :energia`, que genera el getter y el setter. Pero el atributo en sí, la variable de instancia `@energia`, nunca se declaró. **En Ruby los atributos no se declaran.** Cualquier variable de instancia por la que preguntes te responde: si nunca la asignaste, vale `nil` y todavía no existe; en el momento en que la asignás, existe. A diferencia de Java o de Wollok, donde primero declarás qué atributos tiene la clase y después los usás.
 
 Hay un mensaje para ver **qué variables de instancia tiene un objeto ahora mismo**:
 
@@ -377,6 +405,21 @@ conan.instance_variables
 ```
 
 Dos guerreros de la misma clase, con distinto conjunto de variables de instancia. En Ruby, **qué variables tiene una instancia es propio de la instancia y se define por el uso**. Si dibujaras el diagrama de clases pondrías `descansado` como atributo de Guerrero, porque conceptualmente lo es. Pero mecánicamente no tenés forma de obtenerlo hasta que alguien lo setee.
+
+Y eso vale incluso para los atributos que tienen `attr_accessor`. `Guerrero` tiene `attr_accessor :peloton`, y sin embargo `@peloton` no está en ninguna de las dos listas de arriba. Es que `attr_accessor` **no crea la variable**: solo define los métodos `peloton` y `peloton=`. Leer no la crea; asignar sí:
+
+```ruby
+conan.peloton
+# => nil                     ← el getter lee una variable que no existe: da nil, y NO la crea
+conan.instance_variables
+# => [:@potencial_ofensivo, :@energia, :@potencial_defensivo]     ← sigue sin @peloton
+
+conan.peloton = :un_peloton  # el setter asigna → recién acá nace @peloton
+conan.instance_variables
+# => [:@potencial_ofensivo, :@energia, :@potencial_defensivo, :@peloton]
+```
+
+Por eso `@potencial_ofensivo`, `@energia` y `@potencial_defensivo` están desde el principio: `initialize` las asigna. `@descansado` aparece con el primer `descansar` o `atacar`. `@peloton` aparece cuando alguien le asigna un pelotón. Nada tiene que ver con dónde está escrito el `attr_accessor`.
 
 *(Si querés verlo todavía más crudo: agregá una línea `@falopa = true` adentro de `descansar` en el archivo, salí de Pry, volvé a entrar y cargá. Un guerrero nuevo no va a tener `@falopa` hasta que descanse.)*
 
@@ -478,6 +521,15 @@ atila.instance_variable_get(:@energia)
 # => 110
 ```
 
+Igual que el getter de la sección 8, leer una variable que no existe da `nil` y no la crea:
+
+```ruby
+atila.instance_variable_get(:@peloton)
+# => nil
+atila.instance_variables
+# => [:@potencial_ofensivo, :@energia, :@potencial_defensivo, :@descansado]   ← @peloton sigue sin existir
+```
+
 Y para escribir, el simétrico:
 
 ```ruby
@@ -490,6 +542,21 @@ atila
 ```
 
 Acabás de cambiarle la energía a un guerrero sin usar su setter. Bypaseaste la interfaz que el objeto ofrece.
+
+`instance_variable_set` también puede **inventar** una variable que ninguna clase menciona. Existe a partir de ese momento, pero nadie le generó getter ni setter, así que solo se llega a ella por esta vía:
+
+```ruby
+conan.instance_variable_set(:@falopa, true)
+# => true
+conan.instance_variables
+# => [:@potencial_ofensivo, :@energia, :@potencial_defensivo, :@peloton, :@falopa]   ← existe
+conan.falopa
+# NoMethodError            ← pero no hay getter: attr_accessor es lo que lo habría generado
+conan.instance_variable_get(:@falopa)
+# => true                  ← por acá sí
+```
+
+Esto termina de separar dos cosas que parecen una: **la variable** (estado del objeto, aparece al asignarla) y **los métodos de acceso** (comportamiento de la clase, los genera `attr_accessor` o los escribís vos).
 
 **Esto no se hace programando el dominio.** Si estás modelando guerreros, usás el setter, porque para eso está y porque el objeto es el que tiene que garantizar que su estado sea consistente. Estos mensajes son para cuando **el dominio de tu problema son programas**: una herramienta que necesita leer o escribir estado de objetos que no conoce y que no le van a ofrecer un getter. Las reglas son otras porque el problema es otro.
 
@@ -571,13 +638,14 @@ Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés
 | pasar de símbolo a string, y al revés | el símbolo / el string | `to_s` / `to_sym` | un string / un símbolo | `:descansar.to_s` · `"descansar".to_sym` |
 | saber qué mensajes entiende un objeto | el objeto | `methods` | lista de selectores (símbolos) | `atila.methods` |
 | saber qué métodos provee una clase a sus instancias | la clase | `instance_methods` | lista de selectores, heredados incluidos | `Guerrero.instance_methods` |
-| solo los definidos en esa clase, sin los heredados | la clase | `instance_methods(false)` | lista corta | `Guerrero.instance_methods(false)` |
+| solo lo escrito en esa clase, sin mixins ni superclases | la clase o el módulo | `instance_methods(false)` | lista corta | `Guerrero.instance_methods(false)` · `Defensor.instance_methods(false)` |
+| solo lo propio de un objeto, sin lo que le da su clase | el objeto | `methods(false)` | por ahora `[]` (Parte 6) | `atila.methods(false)` |
 | saber de quién hereda una clase | la clase | `superclass` | la superclase (salta los mixins) | `Guerrero.superclass` |
 | ver en qué orden se busca un método (linearización) | la clase o el módulo | `ancestors` | lista: ella misma, mixins, superclase, ... | `Guerrero.ancestors` |
 | saber si algo es un mixin | el módulo | `class` | `Module` (una clase da `Class`) | `Atacante.class` |
 | ver qué variables de instancia tiene un objeto **ahora** | el objeto | `instance_variables` | símbolos con `@` | `atila.instance_variables` |
-| leer una variable sin pasar por el getter | el objeto | `instance_variable_get(:@x)` | el valor (el `@` es obligatorio) | `atila.instance_variable_get(:@energia)` |
-| escribir una variable sin pasar por el setter | el objeto | `instance_variable_set(:@x, v)` | el valor nuevo | `atila.instance_variable_set(:@energia, 80)` |
+| leer una variable sin pasar por el getter | el objeto | `instance_variable_get(:@x)` | el valor, o `nil` si no existe (no la crea; el `@` es obligatorio) | `atila.instance_variable_get(:@energia)` |
+| escribir una variable sin pasar por el setter | el objeto | `instance_variable_set(:@x, v)` | el valor nuevo; la crea si no existía, tenga o no accessor | `atila.instance_variable_set(:@energia, 80)` |
 | llamar al setter (es un método que se llama `x=`) | el objeto | `x = v` (azúcar de `x=(v)`) | el valor | `atila.energia = 80` |
 | mandar un mensaje cuyo nombre es un valor | el objeto | `send(:selector, args)` | lo que responda el método | `atila.send(:descansar)` |
 | lo mismo, con el selector guardado en una variable | el objeto | `send(variable)` | ídem | `s = :descansar; atila.send(s)` |
@@ -586,10 +654,12 @@ Con esto queda cubierto lo básico de introspection: descubrir de dónde le vien
 
 ---
 
-### Antes de seguir, tres preguntas para vos
+### Antes de seguir, cinco preguntas para vos
 
 1. `atila.methods` y `Guerrero.instance_methods` devuelven la misma lista. ¿Por qué entonces no son el mismo mensaje, y por qué `atila.instance_methods` falla?
-2. Si dos instancias de la misma clase pueden tener distinto conjunto de variables de instancia, ¿qué te dice eso sobre lo que `instance_variables` está respondiendo realmente?
-3. Adentro de un método escribís `energia = energia - 10` para que el guerrero pierda energía. No pasa nada. ¿Qué hizo Ruby con esa línea?
+2. `atila` entiende `energia`, pero `energia` no aparece en `Guerrero.instance_methods(false)`. ¿Dónde está escrita, y qué está preguntando exactamente el `false`?
+3. Si dos instancias de la misma clase pueden tener distinto conjunto de variables de instancia, ¿qué te dice eso sobre lo que `instance_variables` está respondiendo realmente?
+4. `Guerrero` tiene `attr_accessor :peloton`, pero un guerrero recién creado no tiene `@peloton` entre sus `instance_variables`. ¿Qué hace y qué no hace `attr_accessor`?
+5. Adentro de un método escribís `energia = energia - 10` para que el guerrero pierda energía. No pasa nada. ¿Qué hizo Ruby con esa línea?
 
 *(Las respuestas no están acá. Si alguna no te sale, es la señal de qué releer.)*

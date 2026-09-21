@@ -35,7 +35,7 @@ Ahora tratemos de ubicar `crear_vikingo` en el diagrama de la Parte 5, para que 
 
 **¿En `Guerrero`?** Entonces lo entiende `atila`. Un método puesto en `Guerrero` es para sus instancias; el lookup de `atila` es paso azul a `Guerrero` y lo encuentra. Pero `Guerrero` mismo no lo entiende: su lookup es paso azul a `Class`, y de ahí rojos a `Module`, `Object`... nunca pasa por `Guerrero`. No.
 
-Entonces **este lookup y este metamodelo no admiten la idea**. Necesitaría que hubiera **algo entre `Guerrero` y `Class`**: un lugar propio de `Guerrero`, donde buscar antes de pasar a `Class`.
+Entonces **este lookup y este metamodelo no admiten la idea**. Necesitaría que hubiera **algo entre `Guerrero` y `Class`**: un lugar propio de `Guerrero`, donde buscar antes de pasar a `Class`. Es la caja que en la Parte 4 (sección 5) dejamos sin dibujar: ahí ya sabías que los `def self.` iban "a otro lugar que solo `Guerrero` alcanza". Ahora vamos a dibujarlo.
 
 ```
    Guerrero ──azul──► [ ¿algo acá, solo de Guerrero? ] ──?──► Class
@@ -104,23 +104,71 @@ Guerrero.singleton_class
 # => #<Class:Guerrero>       ← así se muestra la autoclase de Guerrero
 Guerrero.singleton_class.instance_methods(false)
 # => [:crear_vikingo, :gritar]
+Guerrero.method(:gritar).owner
+# => #<Class:Guerrero>       ← owner (Parte 3) lo confirma: la definición vive ahí
 ```
 
 Ahí están. `def self.` **define el método en la autoclase de la clase**. En los diagramas la vamos a llamar `#Guerrero`.
 
-Y así como `def` tiene su versión dinámica en `define_method` (Parte 4), `def self.` tiene la suya: **`define_singleton_method`**. Recibe lo mismo —un selector como valor y un bloque— y define el método **en la autoclase del receptor**. Es un atajo: estas dos líneas son exactamente lo mismo:
+Y ahora cierra una cosa de la Parte 4: allá decíamos que `Guerrero.methods(false)` listaba "lo que Guerrero entiende como objeto". Es exactamente esta lista:
 
 ```ruby
-Guerrero.define_singleton_method(:gritar_fuerte) { 'HAAAA' }        # el atajo
-Guerrero.singleton_class.define_method(:gritar_fuerte) { 'HAAAA' }   # lo que hace por atrás
-Guerrero.gritar_fuerte
-# => "HAAAA"
+Guerrero.methods(false)
+# => [:crear_vikingo, :gritar]
+Guerrero.methods(false) == Guerrero.singleton_class.instance_methods(false)
+# => true                    ← "lo que Guerrero entiende él solo" = "lo que su autoclase provee"
 ```
 
-Fijate la segunda línea: es el `define_method` que ya conocés, mandado a la autoclase en vez de a la clase. Todo lo que aprendiste en la Parte 4 sobre `define_method` —nombre dinámico, bloque que retiene contexto— vale igual acá.
+Son la misma pregunta hecha desde los dos lados: desde el objeto ("¿qué entiendo yo solo?") o desde su autoclase ("¿qué le doy a mi única instancia?").
+
+### Cuatro formas de escribir lo mismo
+
+Así como `def` tiene su versión dinámica en `define_method` (Parte 4), `def self.` tiene la suya: **`define_singleton_method`**. Recibe lo mismo —un selector como valor y un bloque— y define el método **en la autoclase del receptor**. Y como la autoclase es una clase, también se la puede abrir a corazón abierto, con `class << objeto`:
+
+```ruby
+Guerrero.define_singleton_method(:gritar_fuerte) { 'HAAAA' }        # 1. el atajo dinámico
+Guerrero.gritar_fuerte
+# => "HAAAA"
+
+Guerrero.singleton_class.define_method(:gritar_fuerte) { 'HAAAA' }   # 2. lo que hace por atrás: define_method a la autoclase
+
+class << Guerrero                                                    # 3. abrir la autoclase de Guerrero
+  def gritar_bajito
+    'haaa...'
+  end
+end
+Guerrero.gritar_bajito
+# => "haaa..."
+
+def Guerrero.gritar_desde_afuera                                     # 4. def <objeto>.<método>, sin abrir nada
+  'haaaa!'
+end
+Guerrero.gritar_desde_afuera
+# => "haaaa!"
+
+Guerrero.singleton_class.instance_methods(false).sort
+# => [:crear_vikingo, :gritar, :gritar_bajito, :gritar_desde_afuera, :gritar_fuerte]   ← todos en el mismo lugar
+```
+
+Cuatro sintaxis, un solo efecto: una fila más en la tabla de `#Guerrero`. `def self.x` adentro del cuerpo es el caso 4 con `self` en lugar del nombre. Y `class << self` adentro del cuerpo es el caso 3, que es como suelen escribirse varios métodos de clase seguidos. Todo lo que aprendiste en la Parte 4 sobre `define_method` —nombre dinámico, bloque que retiene contexto— vale igual para `define_singleton_method`.
+
+### La regla de `bind`, aplicada a la autoclase
+
+En la Parte 3 (sección 5) viste que un método solo se puede vincular a instancias de la clase dueña. `gritar` es dueño de `#Guerrero`, y `#Guerrero` tiene **una sola instancia posible**: `Guerrero`. Así que:
+
+```ruby
+Guerrero.method(:gritar).unbind.bind(atila)
+# TypeError: singleton method called for a different object
+#    ← la misma regla de siempre: atila no es instancia de #Guerrero
+
+Guerrero.method(:gritar).unbind.bind(Espadachin).call
+# => "haaaa"                 ← Espadachin sí (la sección 5 explica por qué)
+```
+
+No es un caso especial: es la restricción de la Parte 3 aplicada a una caja que solo tiene un habilitado.
 
 > **Para el parcial, si te preguntan:** *¿Dónde queda definido un método escrito con `def self.metodo` dentro de una clase? ¿Por qué no en la clase ni en `Class`?*
-> En la singleton class (autoclase) de esa clase: una clase dedicada exclusivamente a ese objeto. No queda en la clase porque lo que se define ahí lo entienden sus instancias, no la clase. No queda en `Class` porque lo entenderían todas las clases del sistema. La autoclase es el lugar intermedio, propio de un único objeto, donde el lookup busca antes que en cualquier otro lado.
+> En la singleton class (autoclase) de esa clase: una clase dedicada exclusivamente a ese objeto. No queda en la clase porque lo que se define ahí lo entienden sus instancias, no la clase. No queda en `Class` porque lo entenderían todas las clases del sistema. La autoclase es el lugar intermedio, propio de un único objeto, donde el lookup busca antes que en cualquier otro lado. `define_singleton_method`, `class << X` y `def X.m` son otras formas de definir en el mismo lugar.
 
 ---
 
@@ -175,6 +223,61 @@ Module.singleton_class.superclass
 
 Tiene sentido: si querés poner métodos que entiendan **los módulos** (como objetos, mensajes que se le mandan a `Module` o a `Atacante`), necesitás un lugar donde las clases —que son módulos— también los encuentren. Y acá es donde se conectan `Guerrero` y `Module`: no son tan distintas, las dos son subclases de `Object`, y sus autoclases van las dos a `#Object`. Y `#Object` va a `#BasicObject`, y esa a `Class`. Todas llegan a `Class`, lo cual es razonable.
 
+### Los módulos también tienen autoclase
+
+Un módulo es un objeto; entonces tiene autoclase, y esa autoclase es una **clase** (no existe un "singleton module"). Lo que cambia es el camino:
+
+```ruby
+module Vikingo
+  def grito_vikingo
+    "Por Odin! soy #{self.class}"
+  end
+end
+
+Vikingo.class
+# => Module
+Vikingo.singleton_class
+# => #<Class:Vikingo>
+Vikingo.singleton_class.class
+# => Class                   ← la autoclase de un módulo es una clase, como todas
+Vikingo.singleton_class.ancestors
+# => [#<Class:Vikingo>, Module, Object, Kernel, BasicObject]
+#                       ↑ no pasa por Class
+
+Vikingo.new
+# NoMethodError: undefined method `new' for Vikingo:Module    ← por eso un módulo no se instancia: el lookup no llega a new
+```
+
+Y acá se ve, en una lista, toda la diferencia entre una clase y un módulo:
+
+```ruby
+Class.superclass
+# => Module
+Class.instance_methods(false).sort
+# => [:allocate, :attached_object, :new, :subclasses, :superclass]
+```
+
+**Una clase es un módulo que además sabe instanciar y tener superclase.** Esa lista es todo lo que `Class` agrega.
+
+Como todo objeto, un módulo puede tener métodos propios, en su autoclase, con la misma sintaxis `def self.`. Y no se mezclan con lo que provee como mixin:
+
+```ruby
+module Vikingo
+  def self.cuantos_dioses        # lo entiende Vikingo, el módulo
+    'muchos'
+  end
+end
+
+Vikingo.cuantos_dioses
+# => "muchos"
+Vikingo.methods(false)
+# => [:cuantos_dioses]           ← lo que ENTIENDE
+Vikingo.instance_methods(false)
+# => [:grito_vikingo]            ← lo que PROVEE a quien lo incluya
+```
+
+Quien incluya `Vikingo` recibe `grito_vikingo`, nunca `cuantos_dioses`. Las dos poblaciones de la Parte 4 valen para módulos igual que para clases.
+
 ---
 
 ## 6. Las autoclases de las instancias 🔴
@@ -188,6 +291,8 @@ conan.singleton_class
 # => #<Class:#<Guerrero:0x000055c74568b980>>     ← otra, distinta
 atila.singleton_class == conan.singleton_class
 # => false
+atila.singleton_class.equal?(atila.singleton_class)
+# => true                                        ← se crea la primera vez que la pedís; después es siempre la misma
 ```
 
 Dos guerreros, dos autoclases. Y ahora sí la pregunta de la Parte 4: agregarle un método a `atila` sin agregárselo a `conan`.
@@ -202,9 +307,23 @@ conan.saludar
 # NoMethodError: undefined method `saludar' for #<Guerrero:0x...>   ← conan no lo tiene
 atila.singleton_class.instance_methods(false)
 # => [:saludar]
+atila.methods(false)
+# => [:saludar]              ← la misma identidad que con Guerrero: lo que atila entiende él solo
 ```
 
-`saludar` está en `#atila`, y `#atila` es un lugar por el que solo pasa `atila`. Es el mismo mecanismo que `gritar` en `#Guerrero`: un lugar por el que solo pasa `Guerrero`.
+`saludar` está en `#atila`, y `#atila` es un lugar por el que solo pasa `atila`. Es el mismo mecanismo que `gritar` en `#Guerrero`: un lugar por el que solo pasa `Guerrero`. Y las cuatro formas de la sección 4 valen igual para una instancia:
+
+```ruby
+class << atila                   # abrir la autoclase de atila a corazón abierto
+  def otro_propio
+    'solo mio'
+  end
+end
+atila.otro_propio
+# => "solo mio"
+atila.methods(false)
+# => [:saludar, :otro_propio]
+```
 
 ### ¿A dónde apunta la flecha roja de `#atila`?
 
@@ -235,9 +354,22 @@ atila.singleton_class.ancestors
 
 Y compará con lo que responde `Guerrero.ancestors`, que arranca en `Guerrero`: **la clase no sabe nada de las autoclases de sus instancias**. Esto va a importar en un rato.
 
+### Una autoclase entiende `new`, pero no lo permite
+
+`#atila` es una clase; como toda clase, su camino como objeto llega a `Class`, y por lo tanto entiende `new`. Pero una autoclase tiene **una sola instancia** por definición, y `new` se niega a crear la segunda:
+
+```ruby
+atila.singleton_class.methods.include?(:new)
+# => true                    ← la autoclase, como objeto, entiende new
+atila.singleton_class.new
+# TypeError: can't create instance of singleton class
+```
+
+Fijate el tipo de error: no es `NoMethodError`. El lookup **encontró** `new` en `Class`, lo ejecutó, y fue el propio `new` el que se negó. Regla general para leer errores en la consola: **`NoMethodError` = el lookup no encontró nada; cualquier otro error = lo encontró, y el método se quejó.** El `TypeError` de `bind` de la sección 4 es el mismo caso.
+
 ### Otras formas de ponerle cosas a un solo objeto 🟢
 
-`define_singleton_method` no es la única. Como la autoclase es una clase, le podés hacer lo que le hacés a cualquier clase: incluirle un mixin, o mandarle `attr_accessor`, que —ya sabés— es un mensaje que entienden los módulos:
+`define_singleton_method` y `class <<` no son las únicas. Como la autoclase es una clase, le podés hacer lo que le hacés a cualquier clase: incluirle un mixin, o mandarle `attr_accessor`, que —ya sabés— es un mensaje que entienden los módulos:
 
 ```ruby
 module Presentable
@@ -255,6 +387,14 @@ conan.presentarse
 zorro.presentarse
 # NoMethodError                             ← zorro no fue tocado
 
+conan.singleton_class.ancestors.first(3)
+# => [#<Class:#<Guerrero:0x...>>, Presentable, Guerrero]
+#                                  ↑ el módulo quedó entre la autoclase y la clase, como cualquier include
+```
+
+`extend` es la forma de darle el mismo comportamiento a **algunos** objetos de una clase sin repetirlo en cada autoclase: una sola definición en el módulo, y cada objeto que lo extienda la recibe.
+
+```ruby
 atila.singleton_class.attr_accessor :edad   # un getter y un setter solo para atila
 atila.edad = 40
 atila.edad
@@ -274,7 +414,6 @@ nil.singleton_class
 > `Guerrero.singleton_class.superclass` es `Object.singleton_class`: las autoclases de las clases forman una jerarquía paralela a la de las clases, para que los métodos de clase se hereden y puedan redefinirse (`#Espadachin` → `#Guerrero` → `#Object` → `#BasicObject` → `Class`). `atila.singleton_class.superclass` es `Guerrero`, su clase: entre las instancias no hay ninguna relación de orden que copiar, así que la autoclase de una instancia hereda directamente de la clase de esa instancia. En los dos casos, el lookup es un paso a la autoclase y después pasos `superclass`.
 
 ---
-
 ## 7. El diagrama, completo 🔴
 
 Este es el metamodelo de Ruby entero. Leelo con la tabla de abajo, y verificá cada flecha en la consola: **cada una es una pregunta que ya sabés hacer**.
@@ -334,7 +473,88 @@ Con todo esto, el algoritmo real, que vale para instancias y para clases por igu
 
 ---
 
-## 8. Por qué Ruby lo hace así, y qué te cambia 🟡
+## 8. Preguntarle al metamodelo: las dos perillas 🔴
+
+Con el diagrama completo, los dos mensajes que venís usando desde la Parte 2 para listar métodos —`methods` e `instance_methods`— se pueden explicar de una vez y para siempre. Suelen confundirse porque tienen **dos perillas independientes** que uno tiende a mezclar en una sola:
+
+1. **El mensaje** decide **qué camino se recorre**.
+2. **El argumento** (`false` o nada) decide **cuánto de ese camino se recorre**.
+
+### Perilla 1: qué camino
+
+- `x.methods` — el camino **de x**, que arranca en su autoclase: responde "¿qué entiende x?".
+- `X.instance_methods` — el camino que haría **una instancia de X**, que arranca en X: responde "¿qué le da X a sus instancias?".
+
+Vale para cualquier receptor. Una clase responde los dos porque es las dos cosas a la vez: un objeto (entiende mensajes) y un proveedor (da comportamiento). Y un objeto nunca tiene métodos "adentro": todo lo que entiende se lo da alguna caja de su camino, incluso lo propio, que viene de su autoclase.
+
+### Perilla 2: cuánto del camino
+
+- **Sin argumento**: **todo el camino**, de punta a punta. Es el choclazo que ves en la consola.
+- **`false`**: **solo la primera caja**, sin ancestros.
+
+### Las dos juntas, sobre los caminos reales
+
+```
+atila.methods
+   #atila → Guerrero → Defensor → Atacante → Object → Kernel → BasicObject
+   └(false)┘
+   └──────────────────── sin argumento ────────────────────────────┘
+
+Guerrero.instance_methods
+            Guerrero → Defensor → Atacante → Object → Kernel → BasicObject
+            └(false)┘
+            └──────────────── sin argumento ─────────────────────────┘
+
+Guerrero.methods
+   #Guerrero → #Object → #BasicObject → Class → Module → Object → Kernel → BasicObject
+   └(false)──┘                            ↑ acá vive new
+   └──────────────────────────── sin argumento ────────────────────────────────┘
+```
+
+De ahí salen, sin memorizar nada, los resultados que en la consola parecen caprichosos:
+
+```ruby
+Guerrero.methods.include?(:new)
+# => true                    ← Class está en el camino de Guerrero como objeto
+Guerrero.instance_methods.include?(:new)
+# => false                   ← Class NO está en el camino de sus instancias
+Guerrero.methods(false).include?(:new)
+# => false                   ← está en el camino, pero no en la primera caja
+
+atila.methods == atila.singleton_class.instance_methods
+# => true                    ← el camino de atila ES el que su autoclase provee
+atila.methods(false) == atila.singleton_class.instance_methods(false)
+# => true                    ← y lo mismo con la primera caja sola
+```
+
+Y la trampa clásica: `atila.singleton_class.instance_methods.include?(:new)` da `false`. No porque la autoclase no entienda `new` (lo entiende, como viste en la sección 6), sino porque `instance_methods` pregunta por lo que **provee**, y la única instancia de `#atila` es `atila`, que no entiende `new`.
+
+### Cuándo usar `false`
+
+No es costumbre: son dos preguntas.
+
+- **Con `false`**: "¿qué está escrito **acá**?". Para inspeccionar tu propio código. Es lo que hacés casi siempre en la consola.
+- **Sin argumento**: "¿qué puede **responder**, venga de donde venga?". Para saber si algo entiende un mensaje.
+- Para saber **de dónde** sale un método puntual, no busques en listas: `atila.method(:nil?).owner`.
+
+Hay un tercer mensaje, `singleton_methods`, que recorre solo las cajas **propias** del objeto (su autoclase, los módulos extendidos y, si es una clase, las autoclases de sus superclases) y frena donde empieza lo compartido. Responde "¿qué entiende este objeto que no entienden los demás de su clase?", y a diferencia de `methods(false)` incluye lo que vino por `extend`:
+
+```ruby
+conan.methods(false)
+# => []                      ← presentarse no está en #conan: está en Presentable, la segunda caja
+conan.singleton_methods
+# => [:presentarse]          ← singleton_methods sí lo cuenta: Presentable es propio de conan
+```
+
+> 🕳️ **Madriguera — la autoclase de la autoclase**
+> Como toda autoclase es un objeto, tiene su propia autoclase, y así sin fin (se crean bajo demanda, sección 3). `Guerrero.singleton_class.singleton_class` es `#<Class:#<Class:Guerrero>>`, y su `ancestors` recorre un "piso" más arriba (`##Guerrero → ##Object → ##BasicObject → #Class → #Module → ...`) que termina aterrizando en el piso de abajo, hasta `Class`. Es la misma regla de la sección 5 repetida un nivel más: la superclase de la autoclase de X es la autoclase de la superclase de X. Para la materia alcanza con el primer piso; esto es solo para que no te sorprenda si la consola te lo muestra.
+> *Volvé al camino.*
+
+> **Para el parcial, si te preguntan:** *¿Qué diferencia hay entre `Guerrero.methods` y `Guerrero.instance_methods`? ¿Y qué cambia el argumento `false`?*
+> `methods` lista lo que el receptor entiende como objeto: recorre su lookup, que para una clase arranca en su autoclase y sigue por la jerarquía paralela hasta `Class`, `Module`, `Object`. `instance_methods` lista lo que la clase provee a sus instancias: recorre el lookup que haría una instancia, arrancando en la clase misma. Por eso `new` aparece en `Guerrero.methods` y no en `Guerrero.instance_methods`. El argumento `false` restringe cualquiera de los dos a la primera caja del camino, sin ancestros.
+
+---
+## 9. Por qué Ruby lo hace así, y qué te cambia 🟡
 
 Ruby es un lenguaje que **no te deja definir un objeto suelto**, como el `object` de Wollok. En Wollok escribías `object tal` y el objeto tenía los métodos adentro: era un contenedor de código, buscaba en sí mismo y si no en su superclase; no necesitaba autoclase ni nada. En Ruby siempre tenés que definir una clase e instanciarla. Si querés una sola instancia, creás una clase y la instanciás una vez. ¿Y si querés lógica solo para **esa** instancia y no para las otras? Tenés diez guerreros y uno es un loquito que hace algo distinto. "Bueno, hacele una clase." No, no quiero: ya es instancia de algo, ya lo tengo. Ruby te dice: ponéselo en su autoclase.
 
@@ -348,7 +568,7 @@ Fijate que las reglas de las que partimos eran muy simples: "¿cómo querés bus
 
 ---
 
-## 9. ¿Por qué me dan una librería para romper todo? 🔴
+## 10. ¿Por qué me dan una librería para romper todo? 🔴
 
 Cerremos con la pregunta que alguien tiene que hacer. En Paradigmas partiste de una base: hay objetos, les ponés responsabilidades, esas responsabilidades tienen forma de métodos, y **la única manera de comunicarte con un objeto es mandándole mensajes**. ¿Puedo acceder a los atributos? No: le mandás mensajes, y el objeto decide si te contesta. Encapsulamiento. Delegación. No te metés adentro del objeto, no le preguntás de qué clase es: le mandás el mensaje y ahí tenés polimorfismo. Cualquier libro que leas te va a hablar de eso, y de que el objeto siempre tiene que estar en un estado consistente y garantizarlo él.
 
@@ -381,7 +601,7 @@ Es relativo al tipo de trabajo: en diseño web, esto lo vas a usar en casos muy 
 
 ---
 
-## 10. Información operativa de la cursada 🟡
+## 11. Información operativa de la cursada 🟡
 
 Lo que se dijo en clase que afecta a la cursada, todo junto:
 
@@ -397,30 +617,42 @@ Lo que se dijo en clase que afecta a la cursada, todo junto:
 
 ---
 
-## 11. Caja de herramientas de la Parte 6 🔴
+## 12. Caja de herramientas de la Parte 6 🔴
 
 Todo lo que esta parte introdujo, en una tabla para tener al lado mientras leés o mientras probás en la consola. La última columna es una línea lista para tipear en Pry con `age-clase2.rb` cargado y `atila = Guerrero.new` hecho.
 
 | Quiero... | Se lo mando a... | Mensaje o construcción | Responde / efecto | Probalo |
 |---|---|---|---|---|
-| la autoclase de cualquier objeto (se crea si no existía) | el objeto | `singleton_class` | `#<Class:...>` | `atila.singleton_class` · `Guerrero.singleton_class` |
+| la autoclase de cualquier objeto (se crea si no existía) | el objeto | `singleton_class` | `#<Class:...>`; siempre la misma después de creada | `atila.singleton_class` · `Guerrero.singleton_class` · `Atacante.singleton_class` |
 | definir un método de clase | la clase, en su cuerpo | `def self.m; ...; end` | queda en la autoclase de la clase | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| lo mismo, desde afuera | la clase, por su nombre | `def X.m; ...; end` | ídem | `def Guerrero.gritar; 'haaaa'; end` |
 | definir un método para **un solo objeto**, con nombre dinámico | el objeto (o la clase) | `define_singleton_method(:sel) { cuerpo }` | queda en su autoclase | `atila.define_singleton_method(:saludar) { 'hola' }` |
 | lo mismo, escrito largo | la autoclase | `singleton_class.define_method(:sel) { }` | ídem | `atila.singleton_class.define_method(:saludar) { 'hola' }` |
-| ver qué métodos propios tiene un objeto o una clase | la autoclase | `singleton_class.instance_methods(false)` | los selectores que solo él entiende | `Guerrero.singleton_class.instance_methods(false)` |
+| abrir la autoclase a corazón abierto | el objeto (o la clase) | `class << x; def m; end; end` | varios métodos propios de una vez | `class << atila; def saludar; 'hola'; end; end` |
+| ver qué métodos propios tiene un objeto o una clase | el objeto · su autoclase | `methods(false)` · `singleton_class.instance_methods(false)` | la misma lista, vista desde los dos lados | `Guerrero.methods(false)` |
+| propios incluyendo lo que vino por `extend` | el objeto | `singleton_methods` | frena donde empieza lo compartido | `conan.singleton_methods` |
 | la superclase de una autoclase | la autoclase | `singleton_class.superclass` | la autoclase de la superclase (clases) · la clase (instancias) | `Guerrero.singleton_class.superclass` · `atila.singleton_class.superclass` |
 | el method lookup **completo** de un objeto | la autoclase | `singleton_class.ancestors` | la linearización empezando por la autoclase | `atila.singleton_class.ancestors` |
+| lo que un objeto entiende vs lo que una clase provee | el objeto · la clase | `methods` · `instance_methods` | dos caminos distintos (§8) | `Guerrero.methods.include?(:new)` vs `Guerrero.instance_methods.include?(:new)` |
+| solo la primera caja de cualquiera de los dos | ídem | `methods(false)` · `instance_methods(false)` | sin ancestros | `atila.methods(false)` |
 | incluir un mixin en un solo objeto | la autoclase | `singleton_class.include Mixin` | solo ese objeto lo entiende | `atila.singleton_class.include Presentable` |
-| lo mismo, con atajo | el objeto | `extend Mixin` | ídem | `conan.extend Presentable` |
+| lo mismo, con atajo | el objeto | `extend Mixin` | ídem; el módulo queda entre la autoclase y la clase | `conan.extend Presentable` |
 | un getter y un setter para un solo objeto | la autoclase | `singleton_class.attr_accessor :x` | solo ese objeto tiene `x` y `x=` | `atila.singleton_class.attr_accessor :edad` |
 | comprobar que la autoclase hereda `new` por la cadena | la autoclase de una clase | `singleton_class.instance_methods.include?(:new)` | `true` | `Guerrero.singleton_class.instance_methods.include?(:new)` |
+| ver que una autoclase no se instancia | la autoclase | `singleton_class.new` | `TypeError` (lo encontró y se negó) | `atila.singleton_class.new` |
+| dónde vive un método de clase | el `Method` | `method(:m).owner` | `#<Class:X>` | `Guerrero.method(:gritar).owner` |
 | la autoclase de `nil` (caso especial) | `nil` | `singleton_class` | `NilClass` | `nil.singleton_class` |
 
-Y la regla que reemplaza a la de la Parte 3: **method lookup = un paso verde (`singleton_class`) + n pasos rojos (`superclass`)**, corte en `nil`.
+Y las reglas que no son mensajes:
+
+- **Method lookup = un paso verde (`singleton_class`) + n pasos rojos (`superclass`)**, corte en `nil`. Reemplaza a la regla de la Parte 3.
+- **`NoMethodError` = el lookup no encontró nada. Cualquier otro error = lo encontró, y el método se quejó.**
+- **Dos perillas:** el mensaje (`methods` / `instance_methods`) elige el camino; `false` lo recorta a la primera caja.
+- **Una clase es un módulo que además entiende `new` y `superclass`.** La autoclase de un módulo es una clase cuyo camino no pasa por `Class`.
 
 ---
 
-## 12. Caja de herramientas de toda la clase 🔴
+## 13. Caja de herramientas de toda la clase 🔴
 
 Las seis tablas anteriores, juntas, para el día que te sentás a practicar sin releer nada. Sesión nueva: `pry`, `require_relative 'age-clase2'`, `atila = Guerrero.new`, `conan = Guerrero.new`, `zorro = Espadachin.new(Espada.new(30))`.
 
@@ -432,35 +664,46 @@ Las seis tablas anteriores, juntas, para el día que te sentás a practicar sin 
 | 2 | de qué clase es un objeto | `class` | la clase (un objeto) | `atila.class` |
 | 2 | si es de cierto tipo | `is_a?(Tipo)` | `true`/`false` | `atila.is_a?(Atacante)` |
 | 2 | símbolo ↔ string | `to_s` / `to_sym` | string / símbolo | `"descansar".to_sym` |
-| 2 | qué mensajes entiende un objeto | `methods` | selectores | `atila.methods` |
-| 2 | qué provee una clase (solo lo propio) | `instance_methods(false)` | selectores | `Guerrero.instance_methods(false)` |
+| 2 | qué mensajes entiende un objeto (todo su camino) | `methods` | selectores | `atila.methods` |
+| 2 | qué provee una clase (solo lo escrito ahí) | `instance_methods(false)` | selectores | `Guerrero.instance_methods(false)` |
 | 2 | de quién hereda | `superclass` | la superclase | `Guerrero.superclass` |
 | 2 | orden de búsqueda | `ancestors` | la linearización | `Guerrero.ancestors` |
 | 2 | si es un mixin | `class` | `Module` | `Atacante.class` |
-| 2 | variables de instancia actuales | `instance_variables` | símbolos con `@` | `atila.instance_variables` |
-| 2 | leer / escribir una variable sin getter ni setter | `instance_variable_get(:@x)` / `_set(:@x, v)` | el valor | `atila.instance_variable_get(:@energia)` |
+| 2 | variables de instancia actuales (las asignadas hasta ahora) | `instance_variables` | símbolos con `@` | `atila.instance_variables` |
+| 2 | leer / escribir una variable sin getter ni setter | `instance_variable_get(:@x)` / `_set(:@x, v)` | el valor (`get` no crea; `set` sí) | `atila.instance_variable_get(:@energia)` |
 | 2 | llamar al setter | `x = v` | el valor | `atila.energia = 80` |
 | 2 | mandar un mensaje cuyo nombre es un valor | `send(:sel, args)` | lo que responda | `atila.send(:descansar)` |
-| 3 | el método como objeto (vinculado) | `method(:sel)` | `Method` | `atila.method(:descansar)` |
-| 3 | el método suelto | `instance_method(:sel)` | `UnboundMethod` | `Guerrero.instance_method(:descansar)` |
+| 3 | el método como objeto (vinculado) | `method(:sel)` | `Method` nuevo: definición + receptor | `atila.method(:descansar)` |
+| 3 | el método suelto | `instance_method(:sel)` | `UnboundMethod` nuevo: solo definición | `Guerrero.instance_method(:descansar)` |
 | 3 | parámetros / cantidad / dueño / receptor | `parameters` / `arity` / `owner` / `receiver` | lista / número / módulo / objeto | `atila.method(:atacar).owner` |
 | 3 | ejecutar sin lookup | `call(args)` | lo que devuelva | `atila.method(:sufri_danio).call(30)` |
-| 3 | atar / soltar | `bind(obj)` / `unbind` | `Method` / `UnboundMethod` nuevos | `Guerrero.instance_method(:descansar).bind(atila).call` |
+| 3 | atar / soltar / cambiar de receptor | `bind(obj)` / `unbind` / `unbind.bind(otro).call` | objetos nuevos; nada se modifica | `Guerrero.instance_method(:descansar).bind(atila).call` |
+| 3 | si dos envoltorios apuntan a lo mismo / son el mismo objeto | `==` / `equal?` | `true` / casi siempre `false` | `atila.method(:descansar) == atila.method(:descansar)` |
 | 4 | agregar o pisar un método en una clase existente | `class X; def m; end; end` | retroactivo; mismo nombre pisa | `class String; def importante; self + '!'; end; end` |
-| 4 | definir un método con nombre dinámico | `define_method(:sel) { }` | el selector | `Guerrero.define_method(:hola) { 'hola' }` |
+| 4 | definir un método con nombre dinámico | `define_method(:sel) { \|args\| }` | el selector | `Guerrero.define_method(:hola) { 'hola' }` |
 | 4 | armar un selector / un nombre de variable | `"...".to_sym` / `"@#{attr}".to_sym` | símbolo | `"@#{:apodo}".to_sym` |
-| 4 | método que entiende la clase | `def self.m` | queda en la autoclase | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| 4 | método que entiende la clase | `def self.m` · `def X.m` | queda en la autoclase | `class Guerrero; def self.gritar; 'haaaa'; end; end` |
+| 4 | a qué población pertenece un método | `instance_methods(false)` vs `methods(false)` | provee vs entiende | `Guerrero.methods(false)` |
 | 5 | recorrer el metamodelo hacia arriba | `superclass` encadenado | `Object`, `BasicObject`, `nil` | `Object.superclass.superclass` |
 | 5 | la clase de una clase / el loop | `class` | `Class` | `Class.class` |
-| 5 | qué es `Class` respecto de `Module` | `Class.superclass` | `Module` | `Class.superclass` |
-| 5 | dónde vive `new` / `attr_accessor` | `X.instance_methods(false).include?(:m)` | `true`/`false` | `Module.instance_methods(false).include?(:attr_accessor)` |
+| 5 | qué es `Class` respecto de `Module` | `Class.superclass` · `Class.instance_methods(false)` | `Module` · lo que Class agrega | `Class.superclass` |
+| 5 | dónde vive `new` / `attr_accessor` | `X.instance_methods(false).include?(:m)` · `method(:m).owner` | `true`/`false` · la caja | `Module.instance_methods(false).include?(:attr_accessor)` |
 | 6 | la autoclase | `singleton_class` | `#<Class:...>` | `atila.singleton_class` |
-| 6 | un método para un solo objeto | `define_singleton_method(:sel) { }` | queda en su autoclase | `atila.define_singleton_method(:saludar) { 'hola' }` |
-| 6 | métodos propios / superclase / lookup completo | `singleton_class.instance_methods(false)` / `.superclass` / `.ancestors` | selectores / caja / linearización | `atila.singleton_class.ancestors` |
+| 6 | un método para un solo objeto | `define_singleton_method(:sel) { }` · `class << x` | queda en su autoclase | `atila.define_singleton_method(:saludar) { 'hola' }` |
+| 6 | métodos propios / superclase / lookup completo | `methods(false)` / `singleton_class.superclass` / `singleton_class.ancestors` | selectores / caja / linearización | `atila.singleton_class.ancestors` |
 | 6 | un mixin o un accessor para un solo objeto | `extend M` · `singleton_class.attr_accessor :x` | solo ese objeto | `conan.extend Presentable` |
+| 6 | qué entiende vs qué provee, y cuánto del camino | `methods` / `instance_methods` × `false` | dos perillas | `Guerrero.methods.include?(:new)` |
 
 ---
 
+### Antes del checkpoint, cuatro preguntas de esta parte
+
+1. `Guerrero.methods(false)` y `Guerrero.singleton_class.instance_methods(false)` dan la misma lista. ¿Por qué son la misma pregunta hecha desde dos lados?
+2. `atila.singleton_class.new` da `TypeError` y `Vikingo.new` da `NoMethodError`. Explicá cada uno en términos del lookup.
+3. Tenés siete guerreros y querés que dos de ellos entiendan `grito_vikingo`, sin repetir código. ¿Qué hacés y dónde queda el método en el camino de cada uno?
+4. `Guerrero.method(:gritar).unbind.bind(atila)` falla y `.bind(Espadachin)` funciona. ¿Qué regla de la Parte 3 explica las dos cosas?
+
+---
 
 ## Checkpoint de la clase 03
 
