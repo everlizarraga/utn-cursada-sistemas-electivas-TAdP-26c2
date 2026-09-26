@@ -1,17 +1,27 @@
 # Apunte maestro — clase04 — `method_missing`, bloques, contextos e `instance_eval`
 ## Parte 5 — DSLs: una sintaxis propia, y cierre de la unidad
 
-> **Qué cubre esta parte.** Todo lo anterior aplicado: una sintaxis de test que parece otro lenguaje y se explica entera con "cada palabra suelta es un mensaje a `self`" más `instance_eval` en cada nivel; su implementación; por qué se construyen estos lenguajes específicos (DSLs) y un ejemplo que se lee como SQL; las tres cosas que hay que llevarse de la clase; y la información operativa de la cursada.
+> **Qué cubre esta parte.** Todo lo anterior aplicado: una sintaxis de test que parece otro lenguaje y se explica entera con "cada palabra suelta es un mensaje a `self`" más `instance_eval` en cada nivel; su implementación completa; por qué se construyen estos lenguajes específicos (DSLs) y un ejemplo que se lee como SQL; las tres cosas que hay que llevarse de la clase; y la información operativa de la cursada.
 >
-> **De dónde venís.** De toda la unidad. En particular: `respond_to_missing?` y `super` (Parte 1); `&bloque` captura un bloque como `Proc` y `&proc` lo pasa como bloque (Parte 3); el `return` de un proc sale del método donde el proc fue definido (Parte 3 §7); `instance_eval` ejecuta un bloque con otro `self` (Parte 4 §6).
+> **De dónde venís.** De toda la unidad. En particular: `respond_to_missing?` y `super` (Parte 1); `&bloque` captura un bloque como `Proc` y `&proc` lo pasa como bloque (Parte 3); el `return` de un proc sale del método donde el proc fue definido (Parte 3 §7); las palabras sueltas y `instance_eval` (Parte 4 §1 y §6).
 >
-> **Código.** Ruby 3.3, `age.rb` de la materia. La gema `colorize` (que agrega `.green`, `.yellow` a los strings) aparece en el framework; si no la tenés instalada, sacá los `.green`/`.yellow` y anda igual.
+> **Cómo está escrita.** Cada sección abre con la **regla**, en afirmativo. Después el caso, con el resultado al lado. Todo el código se ejecutó antes de escribirse.
+>
+> **Código.** Ruby 3.x, `age.rb` de la materia. La gema `colorize` (que agrega `.green`, `.yellow` a los strings) aparece en el framework; si no la tenés instalada, sacá los `.green`/`.yellow` y anda igual.
 
 ---
 
 ## 1. Una sintaxis que parece otro lenguaje 🔴
 
-Esto es un test escrito con una sintaxis "mágica":
+> **Regla.** Un DSL en Ruby es **solamente dos cosas** que ya tenés:
+> 1. Cada palabra suelta seguida de un bloque (`test_suite do`, `test "…" do`) o de un paréntesis (`assert(…)`) es un **mensaje a `self`** (Parte 4 §1).
+> 2. En cada nivel, el bloque se ejecuta con `instance_eval`, que **elige quién es `self`** ahí adentro (Parte 4 §6).
+>
+> Con eso, cada palabra "mágica" tiene un objeto concreto que la contesta, y ese objeto lo decidió quien armó el DSL.
+>
+> **DSL (Domain-Specific Language, lenguaje de dominio específico):** un lenguaje chico, pensado para un problema concreto, que corre sobre el motor de otro lenguaje. Acá, un "lenguaje de tests" que en realidad es Ruby.
+
+Esto es un test escrito con esa sintaxis:
 
 ```ruby
 test_suite do
@@ -23,14 +33,16 @@ test_suite do
 end
 ```
 
-Por momentos no parece Ruby. Pero con lo que tenés de la Parte 4 se lee de corrido. Fijate en cada palabra:
+Por momentos no parece Ruby. Se lee de corrido aplicando la regla 1 a cada palabra:
 
-- **`test_suite`** es una palabra sola, seguida de `do`. Por la sintaxis de Ruby, o es una variable, o es `self.test_suite`. Y como lleva un `do … end` pegado, es un **mensaje que recibe un bloque**.
-- **`test`** lo mismo: `self.test("…") do … end`, un mensaje con un parámetro (el nombre) y un bloque.
-- **`atila = Guerrero.new(…)`** es una línea normalita. Nada de magia.
-- **`assert`** es `self.assert(…)`.
+| Palabra | Ruby entiende | Qué es |
+|---|---|---|
+| `test_suite do … end` | `self.test_suite do … end` | mensaje a `self`, con un bloque |
+| `test "…" do … end` | `self.test("…") do … end` | mensaje a `self`, con un parámetro (el nombre) y un bloque |
+| `atila = Guerrero.new(…)` | una asignación normal | nada de magia |
+| `assert(…)` | `self.assert(…)` | mensaje a `self`, con paréntesis |
 
-Con menos azúcar sintáctico (sintaxis más cómoda que no agrega nada nuevo: solo abrevia), la misma cosa es:
+Es decir, sin el azúcar sintáctico (sintaxis más cómoda que no agrega nada nuevo, solo abrevia), el mismo test es:
 
 ```ruby
 self.test_suite do
@@ -42,37 +54,44 @@ self.test_suite do
 end
 ```
 
-Y la pregunta que define todo el diseño: **¿quién es `self` en cada una de esas tres líneas?**
+**La pregunta que define todo el diseño: ¿quién es `self` en cada una de esas tres líneas?** Hay dos respuestas, porque hay dos momentos. Cuando **escribís** el archivo, `self` es `main` en las tres. Cuando cada bloque **se ejecuta**, `self` es lo que la regla 2 decidió:
 
-Cuando escribís el código en el archivo, `self` es `main` en las tres. Y `main` no sabe qué es `test_suite`:
+| Línea | `self` al escribirla | `self` al ejecutarla | Quién lo cambió |
+|---|---|---|---|
+| `test_suite do` | `main` | `main` | nadie: está en el archivo suelto |
+| `test "…" do` (adentro del bloque de `test_suite`) | `main` | **la suite** | el `instance_eval` de la suite |
+| `assert(…)` (adentro del bloque de `test`) | `main` | **el test** | el `instance_eval` del test |
+
+```
+   archivo suelto                                      self = main
+   └─ test_suite do … end                              ← mensaje a main: alguien lo tiene que contestar
+        │   (adentro) el bloque se evalúa con         self = la suite, que contesta test
+        └─ test "…" do … end                           ← mensaje a la suite
+             │   (adentro) el bloque se evalúa con    self = el test, que contesta assert
+             └─ assert(…)                              ← mensaje al test
+```
+
+**Quién contesta la primera línea.** `main` no sabe qué es `test_suite`:
 
 ```ruby
 test_suite do end
 # => NoMethodError: undefined method `test_suite' for main:Object
 ```
 
-Para que la primera línea funcione, alguien tiene que contestar `test_suite`. Dos opciones: que **todos los objetos** lo contesten (un método definido suelto en el archivo queda como método privado de `Object`, y todo objeto lo entiende sin receptor), o mandárselo a un **objeto bien conocido**: `MisTest.test_suite do … end`.
+Hay dos formas de que ese mensaje tenga quién lo conteste: un **método definido suelto en el archivo**, que queda como método privado de `Object` y por eso todo objeto lo entiende sin receptor; o mandárselo a un **objeto conocido**, `MisTest.test_suite do … end`. El framework de la sección 2 usa la primera.
 
-Después, adentro del bloque de `test_suite` hay un `self`, y adentro del bloque de `test` hay otro `self`. Con el poder de **elegir quién es `self` en cada bloque** (`instance_eval`), la sintaxis mágica se convierte en esto: instanciar un objeto que sepa contestar `test`, y evaluar el bloque de `test_suite` con `self` = ese objeto. `test` recibe el nombre y otro bloque; ese bloque se evalúa con `self` = un objeto que sabe contestar `assert`; y `assert`, si le pasan `true`, dice que el test salió bien, y si le pasan `false`, que salió mal. Nada más.
-
-```
-   archivo suelto                                      self = main
-   └─ test_suite do … end                              ← mensaje a main: alguien lo tiene que contestar
-        │   (adentro) el bloque se evalúa con         self = un objeto que contesta test
-        └─ test "…" do … end                           ← mensaje a ese objeto
-             │   (adentro) el bloque se evalúa con    self = un objeto que contesta assert
-             └─ assert(…)                              ← mensaje a ese objeto
-```
-
-Lo que parecía otro lenguaje termina siendo **solamente envío de mensajes**, combinado con "agarro el bloque y decido quién es su `self`". Eso es lo que sirve para armar un **DSL**.
-
-> **DSL (Domain-Specific Language, lenguaje de dominio específico):** un lenguaje chico, pensado para un problema concreto, que corre sobre el motor de otro lenguaje. Acá, un "lenguaje de tests" que en realidad es Ruby.
+**El diseño, entonces, en tres líneas:** `test_suite` instancia un objeto que sepa contestar `test`, y evalúa su bloque con `self` = ese objeto. `test` recibe un nombre y otro bloque, y ese bloque se evalúa con `self` = un objeto que sabe contestar `assert`. `assert`, con `true`, dice que el test salió bien; con `false`, que salió mal. Lo que parecía otro lenguaje es **envío de mensajes** más "agarro el bloque y decido quién es su `self`".
 
 ---
 
 ## 2. La implementación 🟡
 
-En clase quedó planteado el diseño y no el código; el TP va a pedir construcciones de este tipo, así que acá va completo. Dos clases: la **suite**, que junta tests, y el **test**, que corre su bloque y contesta `assert`.
+> **Regla del diseño.** Dos clases: la **suite**, que junta tests, y el **test**, que corre su bloque y contesta `assert`. Tres decisiones que lo hacen funcionar:
+> - Los tests se **guardan** como procs y se corren **después**, cuando la suite está completa.
+> - En cada nivel hay un **`instance_eval`**: es lo que permite escribir `test` y `assert` sin receptor.
+> - El corte de un test fallido se hace con un **proc que hace `return`**, creado en cada `run`.
+
+El TP va a pedir construcciones de este tipo, así que acá va completo.
 
 ```ruby
 require 'colorize'                        # gema que agrega .green, .yellow, etc. a los strings
@@ -127,7 +146,7 @@ def test_suite(&bloque)                   # método suelto: queda en Object, se 
 end
 ```
 
-Y ahora el test del principio, tal cual, corre:
+El test del principio, tal cual, corre:
 
 ```ruby
 test_suite do
@@ -176,15 +195,23 @@ end
            │      (puts "esto no se imprime" nunca se alcanza)
 ```
 
-Tres decisiones de diseño, y por qué:
+**Las tres decisiones, y por qué:**
 
 - **Los tests se guardan como procs y se ejecutan después.** Un bloque es "código para más tarde" (Parte 3). Guardarlos permite conocer la suite completa antes de correr: contar, correr en orden, y más adelante filtrar o informar al final.
 - **`instance_eval` en cada nivel.** Es lo que hace que `test` y `assert` se escriban sin receptor, como si fueran palabras del lenguaje. El precio: quien lee el bloque no ve quién es `self`; tiene que saber que "adentro de `test_suite` sos la suite, adentro de `test` sos el test". Es exactamente lo que hacía que la sintaxis pareciera magia.
-- **Un proc con `return` para cortar el test.** Es el "defecto" de la Parte 3 §7 usado a favor: `assert` y `run` son métodos distintos, y hace falta que desde adentro de `assert` se corte `run`. Un proc creado en `run` hace justo eso. Tiene que ser **proc** (una lambda retornaría solo de sí misma) y tiene que crearse **en cada `run`** (si naciera en `initialize`, al llamarlo daría `LocalJumpError`: ese método ya terminó). También se podría hacer con excepciones; el proc muestra el mecanismo con lo que ya tenés.
+- **Un proc con `return` para cortar el test.** Es el "defecto" de la Parte 3 §7 usado a favor: `assert` y `run` son métodos distintos, y hace falta que desde adentro de `assert` se corte `run`. Un proc creado en `run` hace justo eso. Las alternativas, probadas:
+
+| `@cortar_test` es… | Al fallar un `assert`, sale |
+|---|---|
+| `proc { return }` creado en **`run`** | `Tuki` / `Assert falló` y **corta**: el resto del test no corre ✅ |
+| `lambda { return }` creado en `run` | el `return` sale solo de la lambda; el test **sigue** después del assert fallido |
+| `proc { return }` creado en **`initialize`** | `LocalJumpError: unexpected return`: el método donde nació ya terminó |
+
+También se podría hacer con excepciones; el proc muestra el mecanismo con lo que ya tenés.
 
 ### Testear el framework con el framework
 
-Como `TestSuite.new` recibe el bloque sin correrlo, y `run(false)` corre sin imprimir, una suite puede crearse **adentro de un test de otra suite**, y el test de afuera afirma cosas sobre lo que pasó adentro:
+> **Regla.** Como `TestSuite.new` recibe el bloque sin correrlo, y `run(false)` corre sin imprimir, una suite puede crearse **adentro de un test de otra suite**, y el test de afuera afirma cosas sobre lo que pasó adentro. Cada `assert` va al `Test` cuyo `instance_eval` lo está ejecutando: el interno, al interno; el externo, al externo.
 
 ```ruby
 test_suite do
@@ -202,7 +229,7 @@ test_suite do
     mi_test_suite = TestSuite.new do
       test("prueba") do
         assert(false)                               # este assert va al Test INTERNO: corta SU run
-        ejecuto_mas_alla = true                     # y esta línea no debería correr
+        ejecuto_mas_alla = true                     # y esta línea no corre
       end
     end
     mi_test_suite.run(false)
@@ -216,21 +243,21 @@ end
 # Tuki
 ```
 
-Tres cosas pasan a la vez, y las tres son de partes anteriores: cada `assert` va a **su** `Test` (el interno corre con `self` = el test interno por el `instance_eval` de *su* `run`; el externo, con el externo); `TestSuite.new` se puede llamar desde adentro de un test porque es un envío común; y `test_corrio` cruza tres niveles de bloques sin pasarse por parámetro, porque los bloques son closures.
+Tres cosas de partes anteriores, juntas: cada `assert` va a **su** `Test` (el interno corre con `self` = el test interno por el `instance_eval` de *su* `run`; el externo, con el externo); `TestSuite.new` se puede llamar desde adentro de un test porque es un envío común a una clase conocida; y `test_corrio` cruza tres niveles de bloques sin pasarse por parámetro, porque los bloques son closures.
 
 ---
 
 ## 3. Por qué se construyen DSLs 🔴
 
-Dos ideas de fondo, antes del ejemplo.
+> **Regla.** Dos ideas de fondo:
+> 1. **Controlar cuándo se ejecuta un pedazo de código, y cuándo se posterga, es una fuerza elemental**, sobre todo en lenguajes con efecto. Lo más común es resolverlo **parametrizando** (el bloque recibe `|x|` y alguien orquesta), pero el parámetro molesta cuando hay varios o cuando la cantidad es fija. Diferir la ejecución y elegir `self` es la alternativa.
+> 2. **Ruby está diseñado para construir DSLs nativos.** Sirven para simular la sintaxis de otra tecnología (que alguien que la conoce se exprese sin aprender esta) o para decir "quiero que esto se escriba **así**, porque es lo más claro", y hacerlo posible. Esto pesa tanto que Ruby tomó todas las malas decisiones sobre los bloques (Parte 3) con tal de poder escribir `algo do … end`.
 
-**Controlar cuándo se ejecuta un pedazo de código, y cuándo se posterga, es una fuerza elemental.** Especialmente en lenguajes con efecto. Ya lo viste en el framework de colecciones: `map`, `filter`, `forAll`, todo lo que llamaste "orden superior" es la capacidad de escribir un pedazo de código que va a ejecutar **sobre algo que todavía no existe**, y parametrizarlo como si fuera una operación. Mayormente eso se resuelve **parametrizando**: cachos de código que reciben un parámetro, y alguien orquesta la ejecución. El parámetro a veces molesta: cuando querés ejecutar sobre cosas con varios parámetros, o con aridad fija (aridad: la cantidad de parámetros que algo recibe), se vuelve complejo. Diferir la ejecución, jugar con el contexto y elegir quién es `self` abre la puerta a programar cosas como el contador de la Parte 3, con trampas y evoluciones muy interesantes.
-
-**Uno de los focos principales es la construcción de DSLs nativos.** Lenguajes de propósito específico que corren sobre el motor de otro lenguaje, y sirven para dos cosas: simular una sintaxis parecida a la de otra tecnología, para que alguien que la conoce se exprese con facilidad sin aprender esta; o simplemente decir "me gustaría que esto se escriba **así**, porque es lo más claro", y hacerlo posible. Esto es suficientemente importante como para que Ruby haya tomado todas las malas decisiones sobre los bloques (Parte 3) con tal de poder escribir `algo do … end`.
+Ya viste la idea 1 en el framework de colecciones: `map`, `filter`, `forAll`, todo lo que llamaste "orden superior" es escribir un pedazo de código que va a ejecutar **sobre algo que todavía no existe**, y parametrizarlo como si fuera una operación. Con aridad fija (aridad: la cantidad de parámetros que algo recibe) o varios parámetros, se vuelve complejo. Jugar con el contexto abre la puerta a programar cosas como el contador de la Parte 3, con trampas y evoluciones muy interesantes.
 
 ### Un DSL de consulta
 
-Un ejemplo de lo que se puede construir con esto (no lo vamos a implementar):
+Un ejemplo de lo que se puede construir (no lo vamos a implementar):
 
 ```ruby
 db.query {
@@ -240,25 +267,32 @@ db.query {
 }
 ```
 
-Se lee casi como SQL. Y cada pieza está donde puede estar, y en ningún otro lado:
+Se lee casi como SQL, y cada pieza está donde puede estar y en ningún otro lado:
 
-- **`db.query`** es un envío típico: un objeto conocido, `db`, que entiende `query`. Ahí está claro quién entiende qué. Podría hacer que todo lo de adentro ocurra de forma atómica y devolver el resultado.
-- **`select`, `from`, `where`** las entiende quien sea que sea `self` adentro del bloque de `query`. Si escribís `select` afuera, no anda: está mal. **Solo se puede escribir adentro de una `query`**, que es el único lugar donde tiene sentido.
-- **`nombre`, `nota`** son mensajes a un alumno. ¿A cuál? A uno que todavía no elegiste: lo elegís en la línea del `from`. Y como sabés que vas a usar `Alumnos`, podés usar los campos de alumno adentro de `select` y `where`: el bloque de `where` se va a evaluar **en el contexto de cada alumno**, con `self` = ese alumno, y `nota > 7` es `self.nota > 7`.
+| Palabra | Quién la entiende | Por qué está ahí y no en otro lado |
+|---|---|---|
+| `db.query` | `db`, un objeto conocido | envío típico, con receptor explícito. Podría hacer todo lo de adentro de forma atómica y devolver el resultado |
+| `select`, `from`, `where` | el `self` del bloque de `query` | solo se pueden escribir **adentro de `query`**: afuera, nadie las contesta |
+| `nombre`, `nota` (adentro de `select` y `where`) | **cada alumno**: el bloque de `where` se evalúa con `self` = ese alumno | `nota > 7` es `self.nota > 7`; el alumno lo elegís en `from`, y como sabés que es `Alumnos`, podés usar sus campos |
 
-Esto **limita la cantidad de lugares donde podés hacer pelotudeces**. `where` es una palabra que solo podés usar donde es aceptable usarla. Toda la magia pasa por atrás, la controla el que armó el DSL, y para vos es transparente: aprendés la sintaxis y listo.
+Esto **limita los lugares donde podés hacer macanas**: `where` es una palabra que solo podés usar donde tiene sentido. Toda la magia pasa por atrás, la controla quien armó el DSL, y para vos es transparente: aprendés la sintaxis y listo.
 
-Compará con cómo lo escribirías **sin** manejar contextos: cada bloque tendría que recibir el objeto por parámetro.
+**Con parámetros y sin parámetros, lado a lado:**
 
 ```ruby
-db.query { |q|
+db.query { |q|                       # sin manejar contextos: cada bloque recibe el objeto por parámetro
   q.select { |a| a.nombre & a.nota }
   q.from { |t| t.alumnos }
   q.where { |a| a.nota > 7 }
 }
 ```
 
-Un `|q|` acá, un `q.` allá, un `|a|` y un `a.` en cada línea. No parece una gran ganancia. Pero todo va sumando, y rápidamente eso hace compleja la sintaxis y la aleja de lo que querías escribir. Ruby es una tecnología no tipada: cualquier palabra que no sabés que va ahí, nadie te frena. En cualquier tecnología medianamente dinámica, la gente trata de ser lo más expresiva posible, y cualquier pedacito de sintaxis que te podés evitar, lo evitás. Es un gran nicho para jugar con contextos.
+| Versión | Se escribe | Se paga |
+|---|---|---|
+| con parámetros (`\|q\|`, `q.`, `\|a\|`, `a.`) | un `\|x\|` y un `x.` en cada línea | cada línea se aleja de lo que querías escribir; el que lee tiene que seguir los parámetros |
+| sin parámetros (`instance_eval` por nivel) | solo las palabras del dominio | el que lee no ve quién es `self`: tiene que saber que adentro de `where` sos un alumno |
+
+Un `|q|` acá y un `a.` allá no parecen una gran pérdida. Pero todo suma, y rápidamente la sintaxis se aleja de lo que querías escribir. Ruby es una tecnología no tipada: cualquier palabra que no sabés que va ahí, nadie te frena. En cualquier tecnología medianamente dinámica, la gente trata de ser lo más expresiva posible, y cualquier pedacito de sintaxis que te podés evitar, lo evitás. Es un gran nicho para jugar con contextos.
 
 ---
 
@@ -266,9 +300,9 @@ Un `|q|` acá, un `q.` allá, un `|a|` y un `a.` en cada línea. No parece una g
 
 **1. El TP pide una sintaxis, y cada palabra de esa sintaxis importa.** Muchas veces el enunciado viene con "esta línea se tiene que poder ejecutar". No es lo mismo `db.query` que `query` sola; no es lo mismo `where` con un bloque de un parámetro que `where` con un bloque sin parámetros. El fraseo es literal a propósito: el objetivo es que construyas **exactamente esa interfaz**, y con eso, que lidies con los contextos que esa interfaz obliga. Cualquier otra interfaz que "haga lo mismo" no es aceptable.
 
-**2. Contextos existe, es algo, y está en todos lados.** No es esperable salir de esta clase con un manejo fluido; es una clase dura. Lo que sí hay que llevarse: uno tiene distintos grados de control, según la tecnología, sobre qué es una referencia, cómo se resuelve una palabra, cómo se anidan los contextos y cómo se establece el parentesco entre uno y otro (no siempre es por contención). Y tenés la posibilidad no solo de meter mano, sino de **evaluar cosas que fueron escritas en un contexto, en otro**. Eso no es para que funcione por casualidad: es absolutamente intencional, con la misma intencionalidad que el polimorfismo. Es jugar a que existen reglas de escritura nuevas ("en este bloque, imaginate que estás adentro de tal objeto") y encargarse de que eso se ejecute cómo, cuándo y donde corresponde. Ruby no tiene un mecanismo de puente: instalás mi librería y de pronto pareciera que esto es parte del lenguaje. **Cada vez que ves un `do` o una llave, tenés que estar en control de quién va a ejecutar eso.** A veces no lo sabés, porque se lo estás pasando a alguien que te lo pide así, y entonces no es tu problema. Pero cuando vos definís un bloque, tenés capacidades muy locas.
+**2. Contextos existe, es algo, y está en todos lados.** No es esperable salir de esta clase con un manejo fluido: es una clase dura. Lo que sí hay que llevarse: uno tiene distintos grados de control, según la tecnología, sobre qué es una referencia, cómo se resuelve una palabra, cómo se anidan los contextos y cómo se establece el parentesco entre uno y otro (no siempre es por contención). Y tenés la posibilidad de **evaluar cosas que fueron escritas en un contexto, en otro**. Eso es absolutamente intencional, con la misma intencionalidad que el polimorfismo: jugar a que existen reglas de escritura nuevas ("en este bloque, imaginate que estás adentro de tal objeto") y encargarse de que eso se ejecute cómo, cuándo y donde corresponde. **Cada vez que ves un `do` o una llave, tenés que estar en control de quién va a ejecutar eso.** A veces no lo sabés, porque se lo estás pasando a alguien que te lo pide así, y entonces no es tu problema. Pero cuando vos definís un bloque, tenés capacidades muy grandes.
 
-**3. Combinando esta clase con la anterior, se puede modificar Ruby** de una forma que en cualquier otra tecnología requeriría cambiar el compilador. Podés agarrar una clase, buscar ciertos métodos, y cambiar el comportamiento de un método por otro que estás construyendo ahora, cuyo cuerpo es solamente el `call` a un bloque que tenés en ese contexto. Ese bloque, definido en otro lado, puede llamar al cuerpo original del método, y además hacer cosas **antes y después**, referenciar, pisar, guardar y traer. Podés hacer que un objeto ya no sea `self` donde era `self`; que tenga una interfaz infinita; que los parámetros sean bloques con contexto retenido. Estamos cambiando el tejido de lo que uno consideraba las limitaciones básicas sobre las que se construye lo demás. **Cómo y cuándo hacer esas magias es lo que todavía no aprendiste**: hasta acá fue un paneo de las herramientas. Verlas y sentir que las entendiste porque alguien te las explicó es absolutamente distinto de sentarse con un problema y una hoja en blanco y tener que usarlas. Eso empieza la clase que viene.
+**3. Combinando esta clase con la anterior, se puede modificar Ruby** de una forma que en cualquier otra tecnología requeriría cambiar el compilador. Podés agarrar una clase, buscar ciertos métodos, y cambiar el comportamiento de un método por otro que estás construyendo ahora, cuyo cuerpo es solamente el `call` a un bloque que tenés en ese contexto. Ese bloque, definido en otro lado, puede llamar al cuerpo original del método, y además hacer cosas **antes y después**. Podés hacer que un objeto ya no sea `self` donde era `self`; que tenga una interfaz infinita; que los parámetros sean bloques con contexto retenido. **Cómo y cuándo hacer esas magias es lo que todavía no aprendiste**: hasta acá fue un paneo de las herramientas. Verlas y sentir que las entendiste porque alguien te las explicó es distinto de sentarse con un problema y una hoja en blanco y tener que usarlas. Eso empieza la clase que viene.
 
 ---
 
@@ -295,6 +329,7 @@ Un `|q|` acá, un `q.` allá, un `|a|` y un `a.` en cada línea. No parece una g
 | Pasar un proc donde se espera un bloque | `&proc` en la llamada | 3 |
 | Que una cantidad de argumentos incorrecta falle | `lambda` en vez de `proc` | 3 |
 | Cortar un método desde adentro de un bloque | un `proc` con `return`, creado en ese método | 3 / 5 |
+| Saber si una palabra suelta es variable o mensaje | forma escrita + contexto: `x` / `x = …` / `x(…)` | 4 |
 | Que un método o una clase vean las variables de afuera | `define_method` / `Class.new` en vez de `def` / `class` | 4 |
 | Ejecutar un bloque con `self` = otro objeto | `objeto.instance_eval { … }` / `instance_eval(&proc)` | 4 |
 | Lo mismo, pasándole argumentos al bloque | `objeto.instance_exec(args) { \|a\| … }` | 4 |
