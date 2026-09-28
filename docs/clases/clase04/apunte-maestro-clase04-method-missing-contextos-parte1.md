@@ -5,13 +5,17 @@
 >
 > **Cómo sigue la unidad.** Parte 2: el registrador de mensajes, `BasicObject` y cuándo no usar `method_missing`. Parte 3: bloques, procs y lambdas. Parte 4: contextos, qué los corta y qué no, e `instance_eval`. Parte 5: construir una sintaxis propia con todo eso, información operativa y cierre.
 >
-> **De dónde venís.** De las clases 1 a 3 se asume: el method lookup con autoclase (`#atila → Guerrero → … → BasicObject`), los mixins linearizados dentro de esa cadena, `Kernel` como el mixin de `Object`, `send`, `methods`, `method(:x)` y `define_method`.
+> **De dónde venís.** De las clases 1 a 3 se asume: el method lookup con autoclase (`#atila → Guerrero → … → BasicObject`), los mixins linearizados dentro de esa cadena, `Kernel` como el mixin de `Object`, `send`, `methods`, `instance_methods`, `method(:x)` con `.owner`, y `define_method`.
 >
-> **Código.** Ruby 3.3 con el `age.rb` de la materia (`Guerrero`, `Atacante`, `Defensor`, `Espadachin`, `Misil`, `Muralla`). Todos los resultados están como comentario al lado de la línea: no hace falta ejecutar para leer. Los mensajes de error cambian un poco entre versiones (en 3.2 dicen `for #<Guerrero:0x…>` en vez de `for an instance of Guerrero`); lo que importa es el tipo de error.
+> **Cómo está escrita.** Cada sección abre con la **regla**, en afirmativo. Después viene el caso que la muestra, con el resultado al lado de cada línea. Todo el código se ejecutó antes de escribirse. Donde un mecanismo tiene varias formas, van en una tabla: *escribís / Ruby entiende / sale*.
+>
+> **Código.** Ruby 3.x con el `age.rb` de la materia (`Guerrero`, `Atacante`, `Defensor`, `Espadachin`, `Misil`, `Muralla`). `puts x` imprime el texto; `p x` muestra el valor tal cual (corchetes, comillas, `nil` visible). Los mensajes de error cambian un poco entre versiones (3.3 dice `for an instance of Guerrero`; 3.2 dice `for #<Guerrero:0x…>`): lo que importa es el tipo de error.
 
 ---
 
 ## 1. El camino infeliz del lookup 🟡
+
+> **Regla.** El method lookup recorre la cadena de ancestros del receptor de abajo hacia arriba y termina en `BasicObject`. Después de `BasicObject` no hay nada (`superclass` es `nil`): ahí el algoritmo tiene un **corte** cableado. Un mensaje que llega al corte es un envío que **no puede funcionar** con el código tal como está escrito.
 
 Un guerrero recibe dos mensajes. Uno lo entiende, el otro no:
 
@@ -21,14 +25,13 @@ require_relative 'age'           # carga Atacante, Defensor, Guerrero, Espadachi
 atila = Guerrero.new             # sin argumentos: potencial ofensivo 20, energía 100, potencial defensivo 10
 p Guerrero.ancestors             # => [Guerrero, Defensor, Atacante, Object, Kernel, BasicObject]
                                  #    la cadena completa que recorre el lookup, mixins incluidos
-                                 #    (p muestra el valor "como programador": con corchetes, comillas, nil visible; puts lo muestra como texto)
 
 atila.descansar                  # lookup: #atila (vacía) → Guerrero ✓ está: se ejecuta
 atila.comerse_un_sanguche        # lookup: #atila → Guerrero → Defensor → Atacante → Object → Kernel → BasicObject → ✗
 # => NoMethodError: undefined method `comerse_un_sanguche' for an instance of Guerrero
 ```
 
-El camino de `comerse_un_sanguche`, dibujado (dejo afuera los mixins para no ensuciar: están, y el lookup los recorre, pero no cambian nada de lo que sigue):
+El camino de `comerse_un_sanguche`, dibujado (dejo afuera los mixins: están, el lookup los recorre, y no cambian nada de lo que sigue):
 
 ```
 atila.comerse_un_sanguche
@@ -38,19 +41,19 @@ atila.comerse_un_sanguche
                                               se acabó el camino
 ```
 
-Ese `*` no es una clase ni define comportamiento. Es el punto donde el algoritmo del lookup tiene cableado un corte: "si llegaste acá, no hay ningún otro lugar donde buscar". La superclase de `BasicObject` es `nil` justamente para eso: para que el recorrido termine.
+Ese `*` es el corte: el punto donde el algoritmo tiene escrito "si llegaste acá, no hay ningún otro lugar donde buscar".
 
-**Qué significa haber llegado ahí.** No es un problema que el programa pueda resolver en tiempo de ejecución. No es "me quedé sin lugar en el array y hay que redimensionarlo". Es que alguien escribió en el código fuente un envío de mensaje que **no puede funcionar**: el objeto no lo entiende, y ningún mecanismo del sistema lo va a hacer entender. La única forma de arreglarlo es que una persona cambie el código. Desde el punto de vista de la máquina virtual, es un error conceptual del programa. *(Cuando veamos tipado estático, más adelante en la materia, esta situación se va a categorizar con más precisión; por ahora alcanza con esto.)*
+**Qué significa haber llegado ahí.** Alguien escribió en el código fuente un envío de mensaje que no puede funcionar: el objeto no lo entiende, y ningún mecanismo del sistema lo va a hacer entender. La única forma de arreglarlo es que una persona cambie el código. Desde el punto de vista de la máquina virtual, es un error conceptual del programa, distinto de un problema de recursos (como quedarse sin lugar en un array), que el programa sí puede resolver mientras corre. *(Cuando veamos tipado estático, más adelante en la materia, esta situación se va a categorizar con más precisión; por ahora alcanza con esto.)*
 
 > **Máquina virtual (VM):** el programa que ejecuta tu programa. En Ruby, el intérprete; en Java, la JVM. Cuando decimos "la VM tiene que hacer algo", hablamos del intérprete que está corriendo tu código.
 
-Pero la VM es un programa, y un programa no puede "salirse del personaje" y quedarse mirando. Tiene que hacer **algo**, determinístico. Así como el lookup tiene un algoritmo para el camino feliz, necesita uno para el infeliz. Y ahí hay más de una opción.
+La VM es un programa, y un programa siempre hace **algo**, determinístico. Así como el lookup tiene un algoritmo para el camino feliz, necesita uno para el infeliz. Y ahí hay más de una opción.
 
 ---
 
 ## 2. Qué puede hacer el lenguaje cuando llega al `*` 🟡
 
-Antes de ver lo que hace Ruby, vale la pena enumerar lo que *podría* hacer cualquier lenguaje. Recordá que el programa ya está mal: no estamos buscando una manera de que funcione, estamos eligiendo cómo fallar.
+> **Regla.** Ante un envío que no puede funcionar, el lenguaje **elige cómo fallar**; hacer que funcione está descartado. Las opciones se ordenan por cuánta oportunidad le dan al programa de hacer algo con el fallo. Lanzar una excepción es la más generosa: interrumpe, y deja que alguien la ataje.
 
 | Opción | Qué hace la VM | Qué oportunidad te da |
 |---|---|---|
@@ -59,73 +62,61 @@ Antes de ver lo que hace Ruby, vale la pena enumerar lo que *podría* hacer cual
 | **No hacer nada** | Sigue con la siguiente sentencia como si el mensaje se hubiera ejecutado | Ninguna, y encima no te enterás |
 | **Código de error** | El envío "retorna" un valor universal de error | Chequearlo a mano después de cada paso |
 | **Reintentar** | Vuelve a hacer el lookup | Ninguna: nada cambió entre un intento y otro |
-| **Loop infinito** | En vez de cortar en el `*`, la flecha vuelve al principio | Ninguna, y no sabés si se colgó o está trabajando |
+| **Loop infinito** | En vez de cortar en el `*`, la flecha vuelve al principio | Ninguna, y encima no sabés si se colgó o está trabajando |
 
 > **Panic:** terminar el proceso de golpe, sin darle al programa ninguna posibilidad de intervenir. Algunas máquinas virtuales lo hacen cuando detectan algo que no pueden manejar.
 
-Algunas observaciones que salen de la tabla:
+Lo que sale de la tabla:
 
-- **Reintentar no sirve** porque un envío de mensaje es, en el escenario más optimista, atómico: nada pudo haber cambiado en el medio. (Sacando hilos y paralelismo, que son otra discusión.)
-- **No hacer nada es de lo más peligroso.** Permite que el resto del programa siga ejecutando después de que una sentencia no se ejecutó. Es importantísimo que cada sentencia de un programa se ejecute; no podés saltear una y seguir como si nada.
-- **Los códigos de error** existieron mucho tiempo (un registro que se seteaba cuando algo fallaba, y alguien tenía que ir a leerlo). El problema: si nadie lo lee, "pagar los sueldos" termina con la mitad sin pagar y un mensajito guardado que dice "algo salió mal".
+- **Reintentar** parte de que algo cambió entre un intento y otro. Un envío de mensaje es atómico: entre un lookup y el siguiente, nada cambió. (Sacando hilos y paralelismo, que son otra discusión.)
+- **No hacer nada** es la más peligrosa: el resto del programa sigue ejecutando después de que una sentencia se salteó. Cada sentencia de un programa tiene que ejecutarse; una salteada en silencio aparece como un error incomprensible más adelante.
+- **Los códigos de error** existieron mucho tiempo (un registro que se seteaba cuando algo fallaba, y alguien tenía que ir a leerlo). Dependen de que alguien los lea: "pagar los sueldos" termina con la mitad sin pagar y un mensajito guardado que dice "algo salió mal".
 - **El loop infinito y el panic**, a efectos del guerrero, dan lo mismo que la excepción: el mensaje no se ejecutó. La diferencia está del lado del usuario: con un loop no sabés si el sistema se rompió o está procesando algo largo; con un panic no tenés ninguna oportunidad de intervenir.
 
-**Entonces, ¿qué diferencia hay entre lanzar una excepción y matar la VM directamente?** Si nadie ataja la excepción, sube hasta arriba de todo y la VM hace lo único que le queda: panic. Termina igual. La diferencia es que **la podés atajar**. No para hacer que `atila.comerse_un_sanguche` funcione (eso no va a pasar), sino para resolver *el nuevo problema*: que se está por morir el servidor porque alguien mandó un mensaje mal. En vez de matar todo, mostrás un cartel, avisás, y el resto sigue corriendo. Fallaste, pero con más gracia.
+**Excepción vs. panic.** Una excepción que nadie ataja sube hasta arriba de todo, y ahí la VM hace lo único que le queda: panic. Terminan igual. La diferencia es que a la excepción **la podés atajar**. Atajarla sirve para resolver *el nuevo problema*: que se está por morir el servidor porque alguien mandó un mensaje mal. En vez de matar todo, mostrás un cartel, avisás, y el resto sigue corriendo. Fallaste, pero con más gracia. (`atila.comerse_un_sanguche` sigue sin funcionar: eso lo arregla una persona, no un `rescue`.)
 
 Un ejemplo que usás todos los días: la consola de Ruby. Le mandás un mensaje que no entiende, te muestra el error… y sigue viva, podés seguir escribiendo. Alguien, en la capa más externa de ese programa, atajó la excepción, la imprimió y siguió. La capa más cercana al usuario de casi cualquier programa tiene un gran "atajá todo" que convierte cualquier excepción en un aviso en vez de una muerte.
 
-**Las mecánicas son mejores o peores según cuánta oportunidad te den de hacer algo al respecto.** Con ese criterio, la excepción es más generosa que las otras cinco.
-
 ### Atajar la excepción: `rescue`
 
-Una lista de guerreros con un intruso. A todos se les manda `descansar`:
+`begin … rescue … end` es la forma de hacer *try/catch* en Ruby: intento hacer esto; si pasa esta excepción, hago esto otro. El mismo recorrido de una lista con un intruso, sin y con `rescue`:
 
 ```ruby
 require_relative 'age'
 
-[Guerrero.new(10, 10, 10),
- Guerrero.new(10, 10, 10),
- "atila",                              # un String en el medio: no entiende descansar
- Guerrero.new(10, 10, 10)].each do |guerrero|
+lista = [Guerrero.new(10, 10, 10),
+         Guerrero.new(10, 10, 10),
+         "atila",                              # un String en el medio: no entiende descansar
+         Guerrero.new(10, 10, 10)]
+
+lista.each do |guerrero|                       # sin rescue
   guerrero.descansar
   puts "se mandó descansar"
 end
-# Resultado esperado:
-# se mandó descansar
-# se mandó descansar
-# NoMethodError: undefined method `descansar' for an instance of String   ← el tercero explota
-#                                                                           y el cuarto nunca recibe descansar
-```
 
-`NoMethodError` es la excepción que Ruby lanza para este caso particular. Como es una excepción, la puedo atajar. `begin … rescue … end` es la forma de hacer *try/catch* en Ruby: intento hacer esto; si pasa esta excepción, hago esto otro.
-
-```ruby
-[Guerrero.new(10, 10, 10),
- Guerrero.new(10, 10, 10),
- "atila",
- Guerrero.new(10, 10, 10)].each do |guerrero|
-  begin                                   # intento…
+lista.each do |guerrero|                       # con rescue
+  begin                                        # intento…
     guerrero.descansar
     puts "se mandó descansar"
-  rescue NoMethodError                    # …y si se levanta un NoMethodError, en vez de explotar:
-    puts "no se entendió el mensaje"      # me como la excepción y sigo
+  rescue NoMethodError                         # …y si se levanta un NoMethodError, en vez de explotar:
+    puts "no se entendió el mensaje"           # me como la excepción y sigo
   end
 end
-# Resultado esperado:
-# se mandó descansar
-# se mandó descansar
-# no se entendió el mensaje               ← el String falló, pero el programa no se frenó
-# se mandó descansar                      ← el cuarto guerrero sí recibió su mensaje
 ```
 
-El programa corrió hasta el final. Eso es lo que compra la excepción: control sobre el fallo.
+| Recorrido | Sale | Qué pasó con el cuarto guerrero |
+|---|---|---|
+| sin `rescue` | `se mandó descansar` / `se mandó descansar` / `NoMethodError: undefined method 'descansar' for an instance of String` | nunca recibió `descansar`: el programa se cortó en el tercero |
+| con `rescue` | `se mandó descansar` / `se mandó descansar` / `no se entendió el mensaje` / `se mandó descansar` | recibió su mensaje: el programa corrió hasta el final |
 
-⚠️ **Atajar `NoMethodError` es mala práctica en el 99% de los casos.** Es un error del programa (sección 1): al taparlo, no lo arreglás, lo escondés, y va a aparecer más lejos y más raro. Lo que sí es buena práctica es *fail-fast*: fallar temprano y cerca de la causa. Acá lo atajamos para ver que se puede, no como receta.
+`NoMethodError` es la excepción que Ruby lanza para este caso particular. Eso es lo que compra la excepción: control sobre el fallo.
+
+⚠️ **Atajar `NoMethodError` es mala práctica en el 99% de los casos.** Es un error del programa (sección 1): al taparlo lo escondés, y aparece más lejos y más raro. La buena práctica es *fail-fast*: fallar temprano y cerca de la causa. Acá lo atajamos para ver que se puede, no como receta.
 
 > **Fail-fast:** principio de diseño que prefiere que un error explote lo antes posible y lo más cerca posible de donde se originó, en vez de propagarse en silencio.
 
 > 🕳️ **Madriguera — cómo lo manejan otras tecnologías**
-> Smalltalk implementa el lookup en el propio lenguaje y, al fallar, manda un mensaje al objeto (`doesNotUnderstand`); su entorno deja frenar en el error, corregir el código y continuar desde ahí. La JVM hace *panic* ante bytecode inválido. Bash sigue ejecutando tras una línea fallida salvo que lo configures. Haskell, ante una división por cero, no tiene manejo de excepciones: corta.
+> Smalltalk implementa el lookup en el propio lenguaje y, al fallar, manda un mensaje al objeto (`doesNotUnderstand`); su entorno deja frenar en el error, corregir el código y continuar desde ahí. La JVM hace *panic* ante bytecode inválido. Bash sigue ejecutando tras una línea fallida salvo que lo configures. Haskell, ante una división por cero, corta sin manejo de excepciones.
 > *Volvé al camino — esto se profundiza aparte, otro día.*
 
 Ruby es más generoso que todo lo anterior: además de la excepción, tiene una opción más, pensada específicamente para este punto del lookup. Es de lo que se trata esta parte.
@@ -134,40 +125,7 @@ Ruby es más generoso que todo lo anterior: además de la excepción, tiene una 
 
 ## 3. Una segunda oportunidad: a quién avisarle 🔴
 
-Imaginate que estás armando Ruby, y querés que cuando el lookup llegue al `*` el programa tenga una segunda chance: "no se entendió este mensaje, pero si tenías programado cómo seguir, seguí".
-
-**¿Qué información tenés en ese momento?** Para hacer el lookup tuviste que partir de algo. Sabés exactamente tres cosas:
-
-1. **El receptor:** `atila`. Le tuviste que pedir su autoclase para arrancar el camino.
-2. **El nombre del mensaje:** `comerse_un_sanguche`. Es lo que fuiste buscando en cada clase.
-3. **Los parámetros:** ninguno, en este caso. Los tenías a mano por si encontrabas el método.
-
-Es decir, tenés **todo lo que hubiera hecho falta para ejecutar el mensaje, menos el método.**
-
-**¿A quién le avisás?** Estamos en un lenguaje de objetos: si queremos que alguien decida algo, le mandamos un mensaje. Los candidatos:
-
-- **La clase `Object`.** Todo el mundo hereda de ahí, así que "todos" podrían participar. Pero si quisieras cambiar qué se hace, lo cambiarías para todo el programa a la vez.
-- **Un objeto bien conocido** que resuelva estos casos, como `nil` representa "la nada" o como tener un objeto calculadora que resuelve las cuentas en lugar de los números. Mismo problema: un único plan B para todos.
-- **El receptor.** Fijate en los tres datos de arriba: hay un objeto particularmente interesado en que esto se maneje, y es el que iba a recibir el mensaje. Si le avisás a él, **cada objeto (o cada jerarquía) puede tener su propio plan B**: los guerreros manejan de una forma lo que no entienden, las murallas de otra.
-
-Ruby elige la tercera. Cuando el lookup llega al `*`, Ruby le manda **al mismo receptor** un segundo mensaje con los tres datos:
-
-```
-receptor.method_missing(mensaje, parámetros)
-
-atila.method_missing(:comerse_un_sanguche)        # el nombre viaja como símbolo; parámetros, ninguno
-```
-
-Ese segundo mensaje tiene que poder llegarle a **cualquier** objeto, o el mecanismo no sirve. ¿Cómo se garantiza eso? Igual que con cualquier otro mensaje que todos entienden: definiéndolo arriba de todo. Comprobalo:
-
-```ruby
-require_relative 'age'
-
-atila = Guerrero.new
-puts atila.method(:method_missing).owner    # => BasicObject   ← el method_missing que atila usa hoy está en BasicObject
-```
-
-Y ese `method_missing` de `BasicObject` hace lo que vimos en la sección 1: lanza `NoMethodError`. **La excepción no la lanza el lookup: la lanza un método común y corriente**, que se encontró con un lookup común y corriente.
+> **Regla.** Cuando el lookup llega al `*`, Ruby le manda **al mismo receptor** un segundo mensaje: `method_missing`, con el nombre del mensaje original como símbolo y sus parámetros. `method_missing` es un método común y corriente, definido en `BasicObject`, y **es él quien lanza `NoMethodError`**. La excepción no la lanza el lookup: la lanza un método, encontrado por un lookup común y corriente.
 
 ```
 atila.comerse_un_sanguche
@@ -182,11 +140,38 @@ atila.method_missing(:comerse_un_sanguche)
  #atila → Guerrero → Object → BasicObject               ✓ el de BasicObject → lanza NoMethodError
 ```
 
-Tres cosas para quedarse con esto:
+Comprobalo:
+
+```ruby
+require_relative 'age'
+
+atila = Guerrero.new
+puts atila.method(:method_missing).owner    # => BasicObject   ← el method_missing que atila usa hoy está en BasicObject
+```
+
+**Qué información hay en ese momento.** Para hacer el lookup, Ruby partió de tres cosas, y las tres siguen a mano cuando llega al `*`:
+
+1. **El receptor:** `atila`. Le pidió su autoclase para arrancar el camino.
+2. **El nombre del mensaje:** `comerse_un_sanguche`. Es lo que fue buscando en cada clase.
+3. **Los parámetros:** ninguno, en este caso. Los tenía por si encontraba el método.
+
+Es decir: **todo lo que hubiera hecho falta para ejecutar el mensaje, menos el método.** Eso es exactamente lo que viaja en el segundo mensaje:
+
+```
+receptor.method_missing(mensaje, parámetros)
+
+atila.method_missing(:comerse_un_sanguche)        # el nombre viaja como símbolo; parámetros, ninguno
+```
+
+**Por qué al receptor.** Estamos en un lenguaje de objetos: para que alguien decida algo, le mandamos un mensaje. Ruby elige mandárselo al receptor porque es el objeto interesado en que esto se maneje: así **cada objeto (o cada jerarquía) tiene su propio plan B**. Los guerreros manejan de una forma lo que no entienden, las murallas de otra. Las alternativas eran un plan B único para todo el programa: avisarle a la clase `Object` (todos heredan de ahí, así que cambiarlo lo cambia para todos) o a un objeto bien conocido que resuelva estos casos (como `nil` representa "la nada"). Con el receptor, el plan B se elige por jerarquía.
+
+**Por qué siempre llega.** El segundo mensaje tiene que poder llegarle a **cualquier** objeto, o el mecanismo no sirve. Se garantiza igual que con cualquier otro mensaje que todos entienden: definiéndolo arriba de todo, en `BasicObject`. Por eso el segundo lookup **siempre tiene éxito**, y por eso el corte del `*` está cableado justo ahí: un `method_missing` que no se encontrara mandaría `method_missing`, que no se encontraría, que mandaría `method_missing`… el loop infinito de la sección 2.
+
+Tres cosas para quedarse:
 
 - **Cada vez que falla un lookup, corriste dos lookups.** El primero busca tu método; el segundo busca `method_missing`. Es más caro que un envío normal.
-- **El segundo lookup siempre tiene éxito**, porque `method_missing` viene con Ruby, en `BasicObject`. Si de alguna manera lo sacaras de ahí, el `*` mandaría `method_missing`, que no se encontraría, y mandaría `method_missing`… el loop infinito de la sección 2. Por eso el corte está cableado ahí.
-- **No es distinto de las opciones de la sección 2**: es una excepción. La diferencia es que antes de lanzarla, Ruby te deja intervenir con un mensaje. Es un *hook*.
+- **El segundo lookup siempre tiene éxito**, porque `method_missing` viene con Ruby, en `BasicObject`.
+- **Es una excepción, como en la sección 2**, con una diferencia: antes de lanzarla, Ruby te deja intervenir con un mensaje. Es un *hook*.
 
 > **Hook (gancho):** un punto del mecanismo del lenguaje donde vos podés enganchar código propio para cambiar lo que pasa por defecto.
 
@@ -199,7 +184,9 @@ Ruby ya viene cableado así. Lo único que vamos a hacer nosotros es cambiar có
 
 ## 4. Cambiar el plan B: redefinir `method_missing` 🔴
 
-Como `method_missing` se encuentra por lookup, si lo definís en cualquier lugar de la cadena **más abajo** que `BasicObject`, el lookup encuentra el tuyo primero y el de `BasicObject` no se ejecuta nunca. La versión más chica posible:
+> **Regla.** `method_missing` se encuentra por lookup. Definido en cualquier lugar de la cadena **más abajo** que `BasicObject`, el lookup encuentra el tuyo primero y el de `BasicObject` no se ejecuta. Se define **privado**, porque es un mecanismo interno del objeto y no parte de su interfaz; Ruby lo invoca igual.
+
+La versión más chica posible:
 
 ```ruby
 require_relative 'age'
@@ -217,13 +204,11 @@ puts atila.energia                                 # => 10          ← no explo
 puts atila.method(:method_missing).owner           # => Guerrero    ← ahora el lookup encuentra este primero
 ```
 
-Tres cosas de sintaxis que aparecen acá y no habíamos usado:
+Tres cosas de sintaxis que aparecen acá:
 
-- **`*args`** (se pronuncia *splat*): el asterisco junta en un array llamado `args` todos los argumentos que vengan, sean cuantos sean. `method_missing` no sabe de antemano cuántos parámetros trae el mensaje que no se entendió, así que los recibe todos en una lista. Si no vino ninguno, `args` es `[]`.
-- **`private def`**: define el método y lo marca privado en la misma línea. Se lo marca privado porque `method_missing` es un mecanismo interno del objeto, no parte de su interfaz: nadie de afuera debería mandarlo a propósito. Ruby lo invoca igual aunque sea privado.
+- **`*args`** (se pronuncia *splat*): el asterisco junta en un array llamado `args` todos los argumentos que vengan, sean cuantos sean. `method_missing` no sabe de antemano cuántos parámetros trae el mensaje que no se entendió, así que los recibe todos en una lista. Sin argumentos, `args` es `[]`.
+- **`private def`**: define el método y lo marca privado en la misma línea. Privado quiere decir que solo se puede mandar sin receptor explícito (`atila.method_missing(...)` desde afuera no está permitido); Ruby, que lo manda por dentro, lo encuentra igual.
 - **`#{name}`**: interpolación, mete el valor de `name` adentro del string. Solo funciona con comillas dobles.
-
-Volvamos a recorrer el lookup con esta definición puesta, porque es el momento de fijar la mecánica:
 
 **¿CÓMO FUNCIONA?** `atila.comerse_un_sanguche`:
 
@@ -233,28 +218,40 @@ Volvamos a recorrer el lookup con esta definición puesta, porque es el momento 
 4. `method_missing` devuelve lo que devolvió `puts` (`nil`), y ese `nil` es lo que "devuelve" `atila.comerse_un_sanguche`.
 5. El programa sigue en la línea siguiente. El de `BasicObject` nunca corrió.
 
+**Dónde se ve y dónde no: `instance_methods` lista solo los públicos.** Esto es una regla general de la introspección, y `method_missing` es el primer lugar donde te la vas a cruzar: `instance_methods` (y `methods` sobre un objeto) muestran los métodos **públicos**. Los privados tienen su propia lista, `private_instance_methods`. `method(:x).owner` no filtra por visibilidad: encuentra al método esté donde esté.
+
+| Escribís | Ruby entiende | Sale |
+|---|---|---|
+| `Guerrero.instance_methods(false)` | los métodos públicos definidos en `Guerrero` mismo | `[]` |
+| `Guerrero.private_instance_methods(false)` | los privados definidos en `Guerrero` mismo | `[:initialize, :method_missing]` |
+| `atila.method(:method_missing).owner` | dónde vive el que atila usaría, sin importar visibilidad | `Guerrero` |
+| `BasicObject.instance_methods(false)` | los públicos de `BasicObject` | `[:!, :equal?, :__id__, :__send__, :==, :!=, :instance_eval, :instance_exec]` |
+| `BasicObject.private_instance_methods(false)` | los privados de `BasicObject` | `[:initialize, :method_missing, :singleton_method_added, …]` |
+
+El `method_missing` original también es privado: por eso `BasicObject.instance_methods(false)` no lo muestra, y por eso el nuestro se define `private`, igual que el original. `initialize` aparece en la misma lista por la misma razón: Ruby lo hace privado solo. El mismo caso se repite con `puts`, que es privado en `Kernel` y por eso no está en `Kernel.instance_methods(false)`. Regla para llevarse: **cuando un método "no aparece", antes de concluir que no existe, mirá la lista de privados o preguntale a `method(:x).owner`.**
+
 Con esto, `atila` responde `comerse_un_sanguche`. Y también `sarasa`, `volar`, `resolver_un_cubo_rubik`: **cualquier** mensaje que no tenga método cae acá. Ahora la pregunta incómoda.
 
 ---
 
 ## 5. ¿Entendió el mensaje? `methods` vs `respond_to?` 🔴
 
-Le mandaste `comerse_un_sanguche` a `atila` y te respondió. **¿Entendió el mensaje?**
+> **Regla.** Con `method_missing`, un objeto **responde** mensajes para los que **no tiene método**. `methods` sigue listando métodos, y `respond_to?` sigue mirando métodos: los dos dejan de reflejar lo que el objeto responde. `respond_to?` es un mensaje, y como cualquier mensaje que no hace lo que querés, se arregla redefiniéndolo. La forma definitiva de arreglarlo está en la sección 7; acá va el principio.
 
-Depende de qué signifique "entender":
+Le mandaste `comerse_un_sanguche` a `atila` y te respondió. **¿Entendió el mensaje?** Depende de qué signifique "entender":
 
 - Si entender es *tener un método asociado en la jerarquía*, no lo entendió.
 - Si entender es *le mandé el mensaje y me respondió algo*, lo entendió.
 
-Y las dos definiciones se pueden dar vuelta: si un objeto **tiene** un método `comerse_un_sanguche` cuyo cuerpo lanza `NoMethodError`, a efectos prácticos es como no haberlo entendido. Y si no lo tiene pero su `method_missing` lo atiende, a todos los efectos de la interfaz lo entendió: le mandaste "comete un sánguche" y el sánguche está comido. Que haya un método, un mixin o un `method_missing` atrás es **una mecánica más** por la cual el objeto llegó a responder. Llevado al extremo: podrías programar todo Ruby con un solo método `method_missing` en `BasicObject` con un `if` gigante que mire quién es el receptor y qué mensaje llegó.
+Y las dos definiciones se pueden dar vuelta: un objeto **con** un método `comerse_un_sanguche` cuyo cuerpo lanza `NoMethodError` es, a efectos prácticos, un objeto que no lo entiende. Y un objeto sin el método pero con un `method_missing` que lo atiende, a todos los efectos de la interfaz, lo entendió: le mandaste "comete un sánguche" y el sánguche está comido. Que haya un método, un mixin o un `method_missing` atrás es **una mecánica más** por la cual el objeto llegó a responder. Llevado al extremo: podrías programar todo Ruby con un solo `method_missing` en `BasicObject` con un `if` gigante que mire quién es el receptor y qué mensaje llegó.
 
 Hasta hoy, el modelo era simple: los objetos tienen métodos, y los mensajes que entienden son los de sus métodos. **`method_missing` rompe ese modelo**, y no por cómo lo uses: por existir. Consecuencias concretas:
 
-**1. `methods` ya no lista lo que un objeto entiende.** `atila.methods` te da `descansar`, `atacar`, `energia`… y no `comerse_un_sanguche`. Tampoco puede listarlo: con el `method_missing` de la sección 4, `atila` entiende **infinitos** mensajes. Tiene una interfaz infinita. No podés dibujar un diagrama de clases de `Guerrero` con infinitos mensajes adentro.
+**1. `methods` ya no lista lo que un objeto entiende.** `atila.methods` te da `descansar`, `atacar`, `energia`… y no `comerse_un_sanguche`. Tampoco puede listarlo: con el `method_missing` de la sección 4, `atila` entiende **infinitos** mensajes. Tiene una interfaz infinita. Un diagrama de clases de `Guerrero` con infinitos mensajes adentro no se puede dibujar.
 
-**2. `methods` y `respond_to?` son dos preguntas distintas.** Una es "dame la lista"; la otra es "¿podés responder a esto?" y da un booleano. La lista no siempre se puede armar. El booleano, en principio, sí.
+**2. `methods` y `respond_to?` son dos preguntas distintas.** Una es "dame la lista"; la otra es "¿podés responder a esto?" y da un booleano. La lista a veces es imposible de armar. El booleano, en principio, siempre se puede contestar.
 
-> **`respond_to?(:mensaje)`:** le pregunta a un objeto si puede responder ese mensaje. Devuelve `true` o `false`.
+> **`respond_to?(:mensaje)`:** le pregunta a un objeto si puede responder ese mensaje. Devuelve `true` o `false`. Nunca lanza excepción.
 
 **3. Y `respond_to?` miente.**
 
@@ -264,13 +261,15 @@ p atila.respond_to?(:comerse_un_sanguche)        # => false   ← mentira: lo re
 p atila.respond_to?(:descansar)                  # => true    ← lo normal sigue andando
 ```
 
-`respond_to?` mira los métodos definidos en la jerarquía. No sabe nada de `method_missing`, y no podría: `method_missing` puede atender cualquier cosa, y `respond_to?` no tiene forma de adivinar cuáles. Ruby tampoco lo puede arreglar solo: en `method_missing` le dijiste **qué hacer** con un mensaje, no **qué mensajes entendés**.
+`respond_to?` mira los métodos definidos en la jerarquía. En `method_missing` le dijiste a Ruby **qué hacer** con un mensaje, y Ruby sigue sin saber **qué mensajes entendés**: `method_missing` puede atender cualquier cosa, y `respond_to?` no tiene forma de adivinar cuáles.
 
 Esto importa porque hay código que **pregunta antes de mandar**: "de esta lista de mensajes, le mando a este objeto solamente los que pueda responder". Ese código, con nuestro guerrero, se equivoca: descarta `comerse_un_sanguche` porque `respond_to?` dijo que no, y después el guerrero lo hubiera respondido perfectamente. Ya no podés confiar en `respond_to?`.
 
 ### Salir de la magia: es un mensaje
 
-Acá está la gracia de todo el diseño de `method_missing`, y vale la pena decirla explícita. El lookup hace un salto mágico hasta arriba de todo, corta… **y manda un mensaje**. En ese momento dejamos de estar en un mundo extraño donde la VM hace cosas, y volvemos al terreno conocido: mensajes. `respond_to?` es un mensaje. Si miente, se arregla como se arregla cualquier mensaje que no hace lo que querés: redefiniéndolo.
+Acá está la gracia de todo el diseño de `method_missing`, y vale la pena decirla explícita. El lookup hace un salto mágico hasta arriba de todo, corta… **y manda un mensaje**. En ese momento dejamos de estar en un mundo extraño donde la VM hace cosas, y volvemos al terreno conocido: mensajes. `respond_to?` es un mensaje. Si miente, se arregla redefiniéndolo.
+
+**Paso intermedio.** Lo que sigue anda, y en la sección 7 lo vas a **reemplazar** por la forma que Ruby previó para esto. Va acá porque muestra el principio con la herramienta más básica: redefinir el mensaje que miente.
 
 ```ruby
 class Guerrero
@@ -284,7 +283,7 @@ p atila.respond_to?(:descansar)             # => true    ← gracias al super
 p atila.respond_to?(:sarasa)                # => false
 ```
 
-`start_with?("comerse_")` pregunta si el nombre empieza con ese texto; los símbolos lo entienden. Y el `|| super` es lo que hace que `descansar` siga dando `true`: `super` ejecuta el `respond_to?` original, que mira los métodos de la jerarquía como siempre. Si no ponés `super`, tenés que ir vos a buscar todos los métodos de toda la jerarquía para ver si el que te pasaron está ahí, cada vez que redefinís esto, y `descansar` te da `false` mientras tanto.
+`start_with?("comerse_")` pregunta si el nombre empieza con ese texto; los símbolos lo entienden. El `|| super` es lo que hace que `descansar` siga dando `true`: `super` ejecuta el `respond_to?` original, que mira los métodos de la jerarquía como siempre. Sin `super`, `descansar` da `false`, y para arreglarlo tendrías que ir vos a buscar todos los métodos de toda la jerarquía cada vez que redefinís esto.
 
 **Regla que aparece acá y va a volver toda la materia: siempre que redefinís un método, sé consciente de qué estás tapando, y si corresponde, llamá a `super`.** Especialmente en los mensajes que responden **consultas**: cuando redefinís una consulta, casi siempre querés que la respuesta anterior sea parte de tu respuesta. Cuando redefinís algo que *causa un efecto*, a veces sí querés tapar lo anterior; pero eso tiene que ser una decisión, no un olvido.
 
@@ -292,7 +291,11 @@ p atila.respond_to?(:sarasa)                # => false
 
 ## 6. Un `method_missing` con criterio: `comerse_*` 🔴
 
-El `method_missing` de la sección 4 contesta cualquier cosa. Queremos algo más útil: que un guerrero entienda **los mensajes que empiezan con `comerse_`**, y que comer le suba la energía en tantos puntos como letras tenga lo que comió. `sarasa` no queremos que lo entienda.
+> **Regla.** Un `method_missing` útil atiende **solo los mensajes que son suyos** (un criterio sobre el nombre) y delega **todo lo demás a `super`**, para que el mensaje siga subiendo por la cadena y termine en el `NoMethodError` de `BasicObject` como corresponde. Sin el `super`, el método atiende todo y devuelve `nil` en silencio: la opción "no hacer nada" de la sección 2.
+
+El `method_missing` de la sección 4 contesta cualquier cosa. Queremos algo más útil: que un guerrero entienda **los mensajes que empiezan con `comerse_`**, y que comer le suba la energía en tantos puntos como letras tenga lo que comió. `sarasa` queremos que falle como siempre.
+
+Primera versión, con el criterio y sin el `super`:
 
 ```ruby
 require_relative 'age'
@@ -318,11 +321,11 @@ puts atila.energia                 # => 21    ← "un_sanguche" tiene 11 caracte
 3. `name.to_s` → `"comerse_un_sanguche"`. `.delete_prefix("comerse_")` → `"un_sanguche"`. `.size` → `11`.
 4. `@energia += 11` → 21. Es lo último que se evalúa, así que es lo que devuelve el método.
 
-⚠️ **Trampa de símbolo vs string.** `name` llega como símbolo. Un símbolo entiende `start_with?`, pero **no** entiende `delete_prefix`: si escribís `name.delete_prefix("comerse_")` te da `NoMethodError` (y como estás adentro de `method_missing`, el error confunde el doble). Para recortarlo, primero pasalo a string con `to_s`.
-
-Funciona. Y tiene un bug que todavía no ves.
+⚠️ **Trampa de símbolo vs string.** `name` llega como símbolo. Un símbolo entiende `start_with?` y **no** entiende `delete_prefix`: `name.delete_prefix("comerse_")` da `NoMethodError: undefined method 'delete_prefix' for :comerse_un_sanguche:Symbol` (y como estás adentro de `method_missing`, el error confunde el doble). Para recortarlo, primero pasalo a string con `to_s`.
 
 ### Lo que pasa con lo que no es nuestro
+
+La misma clase, con un mensaje que no es nuestro:
 
 ```ruby
 p atila.sarasa            # => nil     ← ⚠️ no explota. Devuelve nil en silencio.
@@ -330,9 +333,9 @@ p atila.sarasa(1, 2)      # => nil
 p atila.energia           # => 21      ← y no tocó nada
 ```
 
-`sarasa` cae en `method_missing`, el `if` no se cumple, el método termina sin hacer nada y devuelve `nil`. **Te comiste el `NoMethodError`.** Es exactamente la opción "no hacer nada" de la sección 2, la más peligrosa: ahora cualquier error de tipeo en cualquier mensaje a un guerrero pasa desapercibido, y aparece tres archivos más lejos como un `nil` inexplicable.
+`sarasa` cae en `method_missing`, el `if` no se cumple, el método termina sin hacer nada y devuelve `nil`. **Te comiste el `NoMethodError`.** Es la opción "no hacer nada" de la sección 2, la más peligrosa: cualquier error de tipeo en cualquier mensaje a un guerrero pasa desapercibido, y aparece tres archivos más lejos como un `nil` inexplicable.
 
-Lo que queremos para `sarasa` es **lo que Ruby ya hacía**: que use el `method_missing` original. Y "lo que ya hacía" se pide con `super`:
+Lo que queremos para `sarasa` es **lo que Ruby ya hacía**: que use el `method_missing` original. "Lo que ya hacía" se pide con `super`:
 
 ```ruby
 class Guerrero
@@ -344,14 +347,15 @@ class Guerrero
     end                # (super sin paréntesis reenvía los mismos argumentos: name y *args)
   end
 end
-
-atila.sarasa
-# => NoMethodError: undefined method `sarasa' for an instance of Guerrero   ← el error normal, como corresponde
-atila.comerse_una_pizza
-puts atila.energia         # => 30    ← "una_pizza" tiene 9 letras: 21 + 9
 ```
 
-¿Por qué `super` y no lanzar vos el `NoMethodError` a mano (con `raise`, la instrucción que lanza una excepción)? Porque **no sabés qué hay más arriba**. Si algún mixin de la jerarquía también definió `method_missing` para atender otros mensajes, tu `raise` lo pisa y esa lógica se pierde. Con `super`, el mensaje sigue subiendo por la cadena: si alguien lo atiende, lo atiende; si nadie, llega a `BasicObject` y explota como siempre. Es la misma regla de la sección 5 aplicada a `method_missing`.
+| Escribís | Ruby entiende | Sale |
+|---|---|---|
+| `atila.comerse_una_pizza` | es nuestro: energía += 9 | `30` (21 + las 9 letras de `una_pizza`) |
+| `atila.sarasa` | no es nuestro → `super` → `BasicObject` | `NoMethodError: undefined method 'sarasa' for an instance of Guerrero` |
+| `atila.descansar` | hay método: `method_missing` ni corre | lo de siempre |
+
+**Por qué `super` y no lanzar vos el `NoMethodError` a mano** (con `raise`, la instrucción que lanza una excepción): porque **no sabés qué hay más arriba**. Con `super`, el mensaje sigue subiendo por la cadena: si algún mixin de la jerarquía también definió `method_missing` para atender otros mensajes, lo atiende; si nadie, llega a `BasicObject` y explota como siempre. Un `raise` tuyo pisa esa lógica. Es la misma regla de la sección 5 aplicada a `method_missing`.
 
 > 🎓 **Para el parcial, si te preguntan:** *¿Por qué hay que delegar a `super` en `method_missing`?*
 > Porque un `method_missing` sin `super` responde **todos** los mensajes, incluidos los que no sabe atender: devuelve `nil` en vez de fallar, y el error aparece lejos de la causa. Con `super` el mensaje sigue subiendo por la jerarquía: lo atiende otro `method_missing` si lo hay, y si no, `BasicObject` lanza `NoMethodError` como corresponde. Además no pisa la lógica de nadie más arriba.
@@ -360,9 +364,9 @@ puts atila.energia         # => 30    ← "una_pizza" tiene 9 letras: 21 + 9
 
 ## 7. El contrato: `respond_to_missing?` 🔴
 
-En la sección 5 arreglamos `respond_to?` pisándolo. Anda, pero cada vez que lo hacés tenés que repetir la lógica de "además de los míos, todos los métodos de la jerarquía". Ruby previó esta situación: `respond_to?` está escrito para que, cuando no encuentra el método pedido, **consulte un segundo mensaje** antes de contestar `false`. Ese mensaje se llama `respond_to_missing?` y existe específicamente para que lo redefinas cuando redefinís `method_missing`.
+> **Regla.** `respond_to?` está escrito para que, cuando no encuentra el método pedido, **consulte un segundo mensaje** antes de contestar `false`: `respond_to_missing?`. Existe específicamente para que lo redefinas cuando redefinís `method_missing`. **El contrato:** cada `method_missing` va con un `respond_to_missing?` del **mismo criterio**, y los dos delegan a `super` lo que no es suyo. Van juntos, siempre, como un par.
 
-La versión completa, en un archivo nuevo (sin la redefinición de `respond_to?` de la sección 5):
+La versión final de `Guerrero`. Son **dos** métodos: el `respond_to?` de la sección 5 **se saca**, porque este par lo reemplaza.
 
 ```ruby
 require_relative 'age'
@@ -387,29 +391,49 @@ p atila.respond_to?(:descansar)             # => true     ← lo encontró direc
 p atila.respond_to?(:sarasa)                # => false    ← respond_to_missing? dijo que no (vía super)
 ```
 
-El segundo parámetro (`include_private`) es el que le dice si tiene que contar también los métodos privados; lo recibís y se lo pasás a `super`, no hace falta hacer nada más con él.
+El segundo parámetro (`include_private`) le dice si tiene que contar también los métodos privados; lo recibís y se lo pasás a `super`, sin hacer nada más con él. Y un detalle de visibilidad: Ruby hace privado a `respond_to_missing?` por su cuenta, igual que a `initialize` (`Guerrero.private_instance_methods(false)` → `[:initialize, :respond_to_missing?, :method_missing]`), porque es un hook, no interfaz.
+
+**Los dos flujos, lado a lado.** Son dos caminos paralelos que usan el mismo criterio. Uno **hace**; el otro **pregunta**.
 
 ```
-atila.respond_to?(:comerse_un_sanguche)
-   │
-   ▼  ¿hay un método comerse_un_sanguche en la jerarquía?       ✗ no
-   │
-   ▼  entonces respond_to? pregunta:
-atila.respond_to_missing?(:comerse_un_sanguche, false)
-   │
-   ▼  el nuestro: start_with?("comerse_") → true                 ✓ respond_to? devuelve true
+        HACER                                        PREGUNTAR
+   atila.comerse_x                              atila.respond_to?(:comerse_x)
+        │                                            │
+        ▼  ¿hay método comerse_x?      ✗             ▼  ¿hay método comerse_x?      ✗
+        │                                            │
+        ▼  Ruby manda:                               ▼  respond_to? manda:
+   atila.method_missing(:comerse_x)             atila.respond_to_missing?(:comerse_x, false)
+        │                                            │
+        ▼  ¿empieza con comerse_?                    ▼  ¿empieza con comerse_?
+     sí → lo atiende (energía += …)               sí → true
+     no → super → BasicObject → NoMethodError     no → super → false
 ```
 
-**El contrato:** cada vez que redefinís `method_missing`, redefinís `respond_to_missing?` con el mismo criterio. Si no, el objeto entiende mensajes que dice no entender, y todo código que pregunte antes de mandar se equivoca. Los dos van juntos, siempre, como un par.
+| | HACER | PREGUNTAR |
+|---|---|---|
+| Lo dispara | `atila.comerse_x` | `atila.respond_to?(:comerse_x)` |
+| Primer paso | lookup de `comerse_x` | ¿hay método `comerse_x` en la jerarquía? |
+| Hook al fallar el primer paso | `method_missing(name, *args)` | `respond_to_missing?(name, include_private)` |
+| Criterio | `name.start_with?("comerse_")` | el **mismo** |
+| `super` lleva a | el `method_missing` de `BasicObject` | el `respond_to_missing?` original |
+| Termina, si es nuestro | el efecto (energía nueva) | `true` |
+| Termina, si no es nuestro | `NoMethodError` | `false` (nunca una excepción) |
+
+Que el criterio sea el mismo de los dos lados es **tu responsabilidad**: Ruby no lo verifica. Un `method_missing` que atiende `comerse_*` con un `respond_to_missing?` que dice `false` deja el objeto en el estado de la sección 5: responde mensajes que dice no entender.
+
+**Por qué `respond_to_missing?` y no `respond_to?` directamente**, si los dos andan:
+
+1. **No repetís la lógica de la jerarquía.** `respond_to?` sigue haciendo su trabajo (mirar los métodos, contar o no los privados); vos solo agregás el pedazo que le falta: el criterio de tu `method_missing`.
+2. **`method(:x)` también lo consulta.** Con `respond_to_missing?` definido, `atila.method(:comerse_algo)` devuelve un objeto método (clase 3) que funciona: `atila.method(:comerse_algo).owner` → `Guerrero`, y `.call` come "algo". Con solo `respond_to?` redefinido, `method(:comerse_algo)` da `NameError`. El hook es la vía oficial: todo lo que Ruby usa para preguntar "¿entendés esto?" pasa por ahí.
 
 > 🎓 **Para el parcial, si te preguntan:** *Redefiniste `method_missing`. ¿Qué más tenés que redefinir y por qué?*
 > `respond_to_missing?`, con el mismo criterio que `method_missing`, delegando a `super` lo que no es tuyo. `respond_to?` solo mira los métodos definidos en la jerarquía; para lo que se atiende dinámicamente consulta `respond_to_missing?`. Sin eso, `respond_to?` devuelve `false` para mensajes que el objeto sí responde, y el código que consulta antes de enviar se rompe.
 
 ### Lo que dejaste de poder asumir
 
-Con estas dos herramientas, si te preguntan "¿qué mensajes entiende un objeto en Ruby?", la respuesta honesta es "no siempre se puede saber". Para armar la lista completa tendrías que revisar si alguien en la jerarquía se metió con `method_missing`; y aun así, alguien pudo haber reabierto el de `BasicObject`. Es parte de la naturaleza de un lenguaje dinámico: podés hacer lo que quieras, y cuando podés hacer lo que quieras, las reglas pierden valor. Una regla que no se cumple siempre no sirve para construir encima.
+Con estas herramientas, si te preguntan "¿qué mensajes entiende un objeto en Ruby?", la respuesta honesta es "no siempre se puede saber". Para armar la lista completa tendrías que revisar si alguien en la jerarquía se metió con `method_missing`; y alguien pudo haber reabierto hasta el de `BasicObject`. Es parte de la naturaleza de un lenguaje dinámico: podés hacer lo que quieras, y cuando podés hacer lo que quieras, las reglas pierden valor. Una regla que no se cumple siempre no sirve para construir encima.
 
-Por eso la disciplina: si usás `method_missing`, defendés `respond_to?` a capa y espada con `respond_to_missing?`, porque es la única manera que le queda al resto del programa de chequear si un objeto entiende algo. Y cuando algo se comporta raro, en vez de asumir el peor caso ("seguro hay un `method_missing` escondido"), usás las herramientas de introspección para investigar (las de la clase pasada, más `respond_to?`): `methods`, `respond_to?`, `method(:x).owner`, `ancestors`. Un `method_missing` escondido es una posibilidad, no la explicación por defecto.
+Por eso la disciplina: si usás `method_missing`, defendés `respond_to?` con `respond_to_missing?`, porque es la única manera que le queda al resto del programa de chequear si un objeto entiende algo. Y cuando algo se comporta raro, usás las herramientas de introspección para investigar: `methods`, `private_methods`, `respond_to?`, `method(:x).owner`, `ancestors`. Un `method_missing` escondido es una posibilidad, no la explicación por defecto.
 
 En la Parte 2 vamos a construir algo con esto: un objeto cuya única razón de existir es **no entender** ningún mensaje.
 
@@ -425,10 +449,12 @@ Sin respuestas. Si alguna no te sale, buscala en esta parte.
 4. ¿Por qué Ruby le manda `method_missing` **al receptor** y no a `Object` o a un objeto global "resolvedor"? ¿Qué gana con eso?
 5. ¿Qué tres datos recibe `method_missing`, y por qué son exactamente esos?
 6. Si borraras `method_missing` de `BasicObject`, ¿en cuál de las opciones de la sección 2 caería Ruby? ¿Por qué?
-7. Escribí un `method_missing` para `Muralla` que atienda cualquier mensaje que empiece con `reforzar_` sumándole 5 al potencial defensivo, y que falle normalmente con cualquier otro mensaje. Agregale lo que le falte para que `respond_to?` no mienta.
-8. Tu `method_missing` no llama a `super`. Mostrá una línea de código que se rompe *en silencio* por eso, y explicá con la tabla de la sección 2 por qué es peor que un error.
-9. Para el mismo problema, ¿por qué conviene redefinir `respond_to_missing?` en vez de `respond_to?` directamente, si las dos andan?
-10. Después de esta parte, ¿qué le contestás a alguien que te pregunta "dame la lista de mensajes que entiende `atila`"?
+7. `Guerrero.instance_methods(false)` da `[]` después de definir `method_missing`. ¿Está o no está definido? ¿Con qué dos herramientas lo comprobás?
+8. Escribí un `method_missing` para `Muralla` que atienda cualquier mensaje que empiece con `reforzar_` sumándole 5 al potencial defensivo, y que falle normalmente con cualquier otro mensaje. Agregale lo que le falte para que `respond_to?` no mienta.
+9. Tu `method_missing` no llama a `super`. Mostrá una línea de código que se rompe *en silencio* por eso, y explicá con la tabla de la sección 2 por qué es peor que un error.
+10. Dibujá los dos flujos (hacer / preguntar) para `atila.comerse_x` y `atila.respond_to?(:comerse_x)`. ¿En qué termina cada uno cuando el mensaje **no** es nuestro?
+11. Para el mismo problema, ¿por qué conviene redefinir `respond_to_missing?` en vez de `respond_to?` directamente, si las dos andan?
+12. Después de esta parte, ¿qué le contestás a alguien que te pregunta "dame la lista de mensajes que entiende `atila`"?
 
 ---
 

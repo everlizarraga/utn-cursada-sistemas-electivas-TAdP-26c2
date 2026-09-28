@@ -180,7 +180,8 @@ Al ejecutar, esa línea manda `self.otra_cosa`, `main` no lo entiende, `NameErro
 
 ## 4. `def` corta el contexto (y `class`, y `module`) 🔴
 
-> **Regla.** Hay exactamente **tres** construcciones que abren un contexto nuevo **cortado** del anterior: **`class`, `module` y `def`**. Se llaman **scope gates** (compuertas de contexto). Adentro de una compuerta, las variables de afuera **no existen**: cualquier palabra suelta se resuelve como mensaje a `self`.
+> **Regla.** Hay exactamente **tres** construcciones que abren un contexto nuevo **cortado** del anterior: **`class`, `module` y `def`**. Se llaman **scope gates** (compuertas de contexto). Adentro de una compuerta, las **variables locales** de afuera **no existen**: cualquier palabra suelta se resuelve como mensaje a `self`.
+> Lo que la compuerta corta son las variables locales, y nada más. Las variables de instancia (`@vida`), los métodos del objeto y las constantes sí se ven adentro: las dos primeras porque se buscan en `self`, la última porque las constantes se buscan por su nombre en mayúscula, sin pasar por el contexto.
 > Los bloques (`do … end`, `{ }`) abren un contexto **hijo**, que ve todo. `if`, `while` y `begin` no abren contexto.
 
 ```
@@ -221,6 +222,34 @@ class B
 end
 # => NameError: undefined local variable or method `nombre' for B:Class     ← acá self es B, no main
 ```
+
+**Qué cruza la compuerta y qué no.** El mismo `def`, pidiendo tres cosas distintas de afuera:
+
+```ruby
+nombre = "pepita"                  # variable local del archivo
+TOPE = 10                          # constante: nombre en MAYÚSCULA, se define una vez
+
+class A
+  def initialize
+    @vida = 100                    # variable de instancia: vive en el objeto
+  end
+  def ver_vida
+    @vida                          # se busca en self → pasa
+  end
+  def ver_tope
+    TOPE                           # constante: se busca por nombre → pasa
+  end
+  def ver_nombre
+    nombre                         # local de afuera: la compuerta la cortó
+  end
+end
+```
+
+| Escribís | Lo que pide | Sale |
+|---|---|---|
+| `A.new.ver_vida` | una variable de instancia | `100` |
+| `A.new.ver_tope` | una constante | `10` |
+| `A.new.ver_nombre` | una variable local de afuera | `NameError: undefined local variable or method 'nombre'` |
 
 **Por qué `def` corta y el proc no.** La diferencia está en `self`. Adentro de un método, `self` es el objeto que **reciba** el mensaje:
 
@@ -319,6 +348,68 @@ A.define_method(:saludar3, &saludar2_proc)   # el proc pasa a ser el cuerpo de s
 
 Literalmente el mismo código, con dos `self` distintos según **cómo** se lo invoque, y en los dos casos con la variable de afuera. Usar `define_method` en vez de `def` te da, además de lo que ya sabías (parametrizar el nombre y la lógica), **las variables que están en contexto**.
 
+**Dónde está escrito el `define_method` importa.** El bloque ve la variable solo si entre la línea que la define y el bloque **no hay ninguna compuerta**. `class` también es compuerta: un `define_method` escrito adentro de `class A … end` llega después del corte.
+
+```ruby
+factor = 3
+
+class A
+  define_method(:doble_adentro) do # bloque, sí, pero escrito ADENTRO de class: class ya cortó
+    factor * 2
+  end
+end
+
+A.define_method(:doble_afuera) do  # escrito AFUERA de class: entre factor y el bloque no hay compuerta
+  factor * 2
+end
+```
+
+| Escribís | Compuertas entre `factor` y el cuerpo | Sale |
+|---|---|---|
+| `A.new.doble_adentro` | `class` | `NameError: undefined local variable or method 'factor'` |
+| `A.new.doble_afuera` | ninguna | `6` |
+
+Flat scope quiere decir eso: **ninguna** compuerta en el camino. Reemplazar solo el `def` no alcanza si el `class` sigue ahí.
+
+**Dos momentos: definir y ejecutar.** `define_method` se ejecuta una vez, en su línea: agrega el método a la clase y termina. El bloque corre después, cada vez que alguien recibe el mensaje. Es lo mismo que con `def`: la línea `def` define; el cuerpo corre cuando mandás el mensaje.
+
+```ruby
+puts "antes de definir"
+A.define_method(:momento) do
+  puts "  ejecutando el cuerpo"    # esto NO sale al definir
+end
+puts "ya definido, todavía no corrió"
+a = A.new
+a.momento
+a.momento
+
+# Resultado esperado:
+# antes de definir
+# ya definido, todavía no corrió
+#   ejecutando el cuerpo           ← primer a.momento
+#   ejecutando el cuerpo           ← segundo a.momento
+```
+
+**Para quién queda el método.** Queda en el objeto al que le mandás el mensaje de definir. `define_method` lo deja en la clase, para todas sus instancias (y las de sus subclases). `define_singleton_method` (clase 3) lo deja en la **autoclase** del receptor: si el receptor es un objeto, solo ese objeto lo entiende; si el receptor es una clase, queda como **método de clase**, el mismo lugar al que va `def self.algo` (sección 4). En las tres formas el cuerpo viaja en un bloque, así que las tres ven `factor`.
+
+```ruby
+factor = 3
+a = A.new
+b = A.new
+
+A.define_method(:de_instancia)     { factor * 10 }   # en A: todas las instancias
+A.define_singleton_method(:de_clase) { factor + 1 }  # en la autoclase de A: método de clase
+a.define_singleton_method(:solo_a) { factor * 100 }  # en la autoclase de a: solo a
+```
+
+| Escribís | Queda para | Probás | Sale |
+|---|---|---|---|
+| `A.define_method(:de_instancia) { … }` | todas las instancias de `A` | `a.de_instancia` / `5.respond_to?(:de_instancia)` | `30` / `false` |
+| `A.define_singleton_method(:de_clase) { … }` | la clase `A` | `A.de_clase` / `a.respond_to?(:de_clase)` | `4` / `false` |
+| `a.define_singleton_method(:solo_a) { … }` | solo `a` | `a.solo_a` / `b.respond_to?(:solo_a)` | `300` / `false` |
+
+"Todas las instancias" es eso: las de `A` y sus subclases. Un `5` o un `"hola"` no lo entienden; el método quedó en `A`, no en todos los objetos de Ruby. `A.define_singleton_method(:x)` equivale a `A.singleton_class.define_method(:x)`: pedirle la autoclase y definir ahí.
+
 **`Class.new`.** Recibe un bloque que se evalúa como el cuerpo de la clase:
 
 ```ruby
@@ -338,8 +429,32 @@ p B.class                          # => Class           ← es una clase como cu
 
 Adentro del bloque escribís lo mismo que en `class B … end`, con una diferencia: **conoce el contexto de afuera**, ve sus variables y las modifica. Y `self` es la clase, igual que en `class B`: de nuevo, Ruby le cambió el `self` al bloque.
 
+**Adentro de `Class.new`, `def` sigue siendo compuerta.** Lo que se aplana es el cuerpo de la clase, no los métodos. El `def m1` de arriba se define bien, pero su cuerpo no ve las variables de afuera. Para que el método las vea, adentro va `define_method`, y ahí sí anda, porque `Class.new` no cortó nada:
+
+```ruby
+factor = 3
+
+C = Class.new do
+  puts factor                      # => 3            ← cuerpo de la clase: es bloque, ve factor
+  def m1
+    factor                         # def cortó: local de afuera → NameError
+  end
+  define_method(:m2) do
+    factor                         # bloque dentro de bloque: ninguna compuerta
+  end
+end
+```
+
+| Adentro de `Class.new` | `self` | ¿Ve `factor`? | Sale |
+|---|---|---|---|
+| cuerpo suelto (`puts factor`) | la clase nueva | Sí | `3` |
+| `def m1` → `C.new.m1` | la instancia | No | `NameError: undefined local variable or method 'factor'` |
+| `define_method(:m2)` → `C.new.m2` | la instancia | Sí | `3` |
+
+Compará `m2` con `doble_adentro` de más arriba: el mismo `define_method` adentro del cuerpo de la clase. Ahí fallaba por la compuerta `class`; acá anda porque `Class.new` es un bloque. Las dos compuertas tienen su reemplazo, y el flat scope completo es usar los dos.
+
 > 🎓 **Para el parcial, si te preguntan:** *¿Cómo hacés que un método use una variable local definida afuera?*
-> Definiéndolo con `define_method` en vez de `def`. `def` es un scope gate: crea un contexto nuevo cortado del anterior, porque en el momento de definir el método no existe el objeto que le daría contexto. `define_method` recibe el cuerpo como bloque, y un bloque conserva las variables del contexto donde fue escrito; Ruby solo le cambia el `self` para que sea la instancia. La técnica se llama flat scope.
+> Definiéndolo con `define_method` en vez de `def`, y sin ningún `class … end` en el medio (o con `Class.new` en su lugar). `def` y `class` son scope gates: crean un contexto nuevo cortado del anterior, porque en el momento de definir el método no existe el objeto que le daría contexto. `define_method` recibe el cuerpo como bloque, y un bloque conserva las variables del contexto donde fue escrito; Ruby solo le cambia el `self` para que sea la instancia. La técnica se llama flat scope.
 
 En `define_method` y en `Class.new`, Ruby cambia el `self` del bloque **por su cuenta**. Lo que sigue es la herramienta para hacerlo **vos**.
 
@@ -348,6 +463,7 @@ En `define_method` y en `Class.new`, Ruby cambia el `self` del bloque **por su c
 ## 6. `instance_eval`: elegir el `self` de un bloque 🔴
 
 > **Regla.** `objeto.instance_eval` ejecuta un bloque con **`self` = `objeto`**. Las variables locales del lugar donde se escribió el bloque **siguen visibles**; lo único que cambia es `self`. Consecuencias: los mensajes sin receptor le llegan a `objeto`, y las variables de instancia que se ven son las de `objeto`.
+> Lo ejecuta **en el acto**, como cualquier `call`, y **devuelve lo que devuelve el bloque**. Se lee "evaluar el bloque en el contexto de la instancia". No asocia el bloque al objeto ni lo guarda para después: cuando `instance_eval` termina, del bloque no queda nada, salvo lo que el bloque haya definido adentro (sección 7).
 > Un proc se le pasa con `&` (Parte 3); un bloque, directo.
 
 ```
@@ -467,6 +583,8 @@ p atila.singleton_class.instance_methods(false)    # => [:gritar]    ← quedó 
 
 Es lo mismo que `atila.define_singleton_method(:gritar) { "haaaa" }` (clase 3), con un `def` escrito adentro de un bloque. Tiene sentido: si `self` es un objeto que no es una clase, el único lugar donde "definir un método para este objeto" significa algo es su autoclase.
 
+Y fijate qué pasó con el `instance_eval`: corrió el bloque en el acto y ya terminó. Su valor de retorno es el del bloque, que acá es el de la línea `def … end`: el símbolo `:gritar` (`p atila.instance_eval { def gritar; end }` muestra `:gritar`). Lo único que sobrevivió del bloque es el método que definió.
+
 **Con `class_eval`, el `def` va a la clase misma:**
 
 ```ruby
@@ -490,6 +608,17 @@ Guerrero.class_eval do
 end
 p otro.huir_con_factor                              # => 16      (50 / 3, división entera)
 ```
+
+Con esto quedan las **cuatro formas de definir un método de instancia** que viste en la clase, lado a lado. En las cuatro el método queda en `Guerrero` y `self` adentro es la instancia que recibe el mensaje. Lo único que cambia es si el cuerpo ve `factor`, y eso depende de una sola cosa: si el cuerpo está escrito con `def` o con un bloque.
+
+| Escribís (con `factor = 3` afuera) | El cuerpo es | ¿Ve `factor`? | `atila.huir` sale |
+|---|---|---|---|
+| `class Guerrero; def huir; energia / factor; end; end` | `def` | No | `NameError` |
+| `Guerrero.class_eval { def huir; energia / factor; end }` | `def` | No | `NameError` |
+| `Guerrero.class_eval { define_method(:huir) { energia / factor } }` | bloque | Sí | `16` |
+| `Guerrero.define_method(:huir) { energia / factor }` | bloque | Sí | `16` |
+
+Las dos del medio muestran que `class_eval` aplana el cuerpo de la clase, igual que `Class.new` (sección 5): el bloque de `class_eval` ve `factor`, pero un `def` adentro sigue cortando. Las dos últimas son equivalentes; la de `class_eval` sirve cuando además querés escribir otras cosas en el cuerpo de la clase.
 
 **El caso que sorprende: sobre una clase, los dos tienen el mismo `self`.**
 
@@ -542,8 +671,10 @@ Sin respuestas.
 8. Nombrá las tres scope gates. ¿Por qué es un problema que sean exactamente las tres construcciones que empaquetan código?
 9. Tenés `saludar2_proc = proc { puts self }`. Mostrá tres formas de ejecutarlo donde `self` sea `main`, una instancia de `A`, y `atila`, respectivamente.
 10. `atila.ejecutar_proc(un_proc)` no cambia el `self` del proc. ¿Por qué? ¿Qué sí lo cambia?
-11. Querés que **todos** los guerreros entiendan `huir`, y querés que el cuerpo del método use una variable local `factor` definida afuera. ¿Con qué combinación de herramientas lo hacés, y por qué no sirve `class Guerrero; def huir …`?
-12. Aparece este requerimiento: "quiero un bloque que compruebe si un guerrero está herido, escrito una vez, y aplicarlo a varios guerreros sin pasárselos por parámetro". ¿Qué herramienta usás y cómo queda el código?
+11. Querés que **todos** los guerreros entiendan `huir`, y querés que el cuerpo del método use una variable local `factor` definida afuera. ¿Con qué combinación de herramientas lo hacés? ¿Por qué no sirve `class Guerrero; def huir …`, y por qué tampoco sirve `class Guerrero; define_method(:huir) …`?
+12. Tres líneas: `A.define_method(:x) { }`, `A.define_singleton_method(:x) { }`, `a.define_singleton_method(:x) { }`. Decí para cada una dónde queda el método y quién lo entiende.
+13. `r = atila.instance_eval { def gritar; "haaaa"; end }`. ¿Qué vale `r`, qué quedó definido y dónde, y por qué el bloque no "quedó asociado" a `atila`?
+14. Aparece este requerimiento: "quiero un bloque que compruebe si un guerrero está herido, escrito una vez, y aplicarlo a varios guerreros sin pasárselos por parámetro". ¿Qué herramienta usás y cómo queda el código?
 
 ---
 
