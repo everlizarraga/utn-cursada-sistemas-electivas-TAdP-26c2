@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pry'
 
 # =========================================================
@@ -34,6 +36,26 @@ end
 # =========================================================
 # =========================================================
 
+class Module
+  def partial_blocks # lector "perezoso": crea el Hash la primera vez
+    @partial_blocks ||= Hash.new { |hash, clave| hash[clave] = [] }
+  end
+
+  def partial_def(name, types, &block)
+    definiciones = partial_blocks[name]
+    definiciones << PartialBlock.new(types, &block)
+
+    define_method(name) do |*args|
+      definicion = definiciones.find do |partial_block|
+        partial_block.matches?(*args)
+      end
+      unless definicion
+        raise NoMethodError, "ninguna definición de #{name} matchea con #{args.inspect}"
+      end
+      definicion.call(*args)
+    end
+  end
+end
 
 
 # =========================================================
