@@ -162,7 +162,7 @@ La **sobrecarga** es tener varias implementaciones con el mismo nombre y distint
 > 📄 **El enunciado dice** (Introducción, tercer párrafo):
 > *"El objetivo de este trabajo práctico es implementar en Ruby un framework que permita definir multimethods a nivel de módulo, llevando el multiple dispatch a Ruby."*
 
-- Un **framework**, acá, es un conjunto de clases y métodos que se agregan a Ruby para que cualquier programa pueda usarlos: no un programa que hace algo, sino una herramienta con la que otros programas definen multimétodos. Nuestro framework es el archivo `multimethods.rb`.
+- Un **framework**, acá, es un conjunto de clases y métodos que se agregan a Ruby para que cualquier programa pueda usarlos: no un programa que hace algo, sino una herramienta con la que otros programas definen multimétodos. Nuestro framework es el archivo `clase05-multimethods.rb`.
 - **A nivel de módulo** quiere decir que el lugar donde se definen los multimétodos es una clase o un módulo (con la sintaxis `partial_def :nombre, [firma] do … end` adentro del cuerpo), y no un objeto suelto ni el programa principal. Se resuelve en el Módulo 3 definiendo `partial_def` en `Module`, que es la clase de la que heredan tanto las clases como los módulos.
 
 **En criollo:** escribir en Ruby las piezas necesarias para que una clase (o un módulo) pueda definir un multimétodo, y para que al mandar el mensaje se elija la implementación mirando los argumentos. Eso es lo que hacen las partes 1, 2 y 3 del enunciado.

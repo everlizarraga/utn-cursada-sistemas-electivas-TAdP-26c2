@@ -75,7 +75,7 @@ Las últimas tres son las habilidades que se evalúan en el individual.
 1. Enunciado a mano. Un módulo por sesión. Leé el código comentado completo; está escrito para entenderse sin ejecutarlo, y para reconocerlo después cuando lo escribas o lo veas escrito de otra forma.
 2. Cuando termines el módulo, contestá el checkpoint por escrito antes de seguir. Las dudas van al chat.
 3. Recién con las dudas cerradas se pasa al siguiente módulo.
-4. Al terminar M6 tenés el archivo `multimethods.rb` completo con sus tests. Ahí sí conviene ejecutarlo y romperlo a propósito. M7 es opcional.
+4. Al terminar M6 tenés el archivo `clase05-multimethods.rb` completo con sus tests. Ahí sí conviene ejecutarlo y romperlo a propósito. M7 es opcional.
 
 ## Sintaxis de Ruby que aparece por primera vez en esta unidad
 

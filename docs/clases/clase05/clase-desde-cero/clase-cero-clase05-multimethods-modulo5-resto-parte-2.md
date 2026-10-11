@@ -371,7 +371,7 @@ Si el nuevo `respond_to?` se escribe con `include_private = true`, empieza a res
 El framework al final de la parte 2. Es el `multimethods.rb` que vas a reconocer en cualquier resolución de este ejercicio, menos la parte 3, que agrega el Módulo 6.
 
 ```ruby
-# multimethods.rb — estado al final del Módulo 5 (parte 2 completa)
+# clase05-multimethods.rb — estado al final del Módulo 5 (parte 2 completa)
 
 class PartialBlock
   attr_reader :types, :block

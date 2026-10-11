@@ -246,7 +246,7 @@ G.new.quien_soy           # => #<G:0x…>    la instancia; se cerró el hilo del
 Todo el framework, en el estado en que queda al final de este módulo. Es un archivo ejecutable.
 
 ```ruby
-# multimethods.rb — estado al final del Módulo 4
+# clase05-multimethods.rb — estado al final del Módulo 4
 
 class PartialBlock
   attr_reader :types, :block

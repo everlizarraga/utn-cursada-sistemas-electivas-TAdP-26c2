@@ -1,4 +1,4 @@
-require_relative 'multimethods'
+require_relative 'clase05-multimethods'
 
 describe PartialBlock do
   let(:hello_block) { PartialBlock.new([String]) { |who| "Hello #{who}" } }

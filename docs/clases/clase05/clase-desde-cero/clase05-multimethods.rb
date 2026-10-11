@@ -1,4 +1,4 @@
-# multimethods.rb — framework completo
+# clase05-multimethods.rb — framework completo
 
 class PartialBlock
   attr_reader :types, :block

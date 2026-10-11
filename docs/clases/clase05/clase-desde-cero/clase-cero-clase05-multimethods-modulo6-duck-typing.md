@@ -4,7 +4,7 @@
 
 ## Sobre este documento
 
-**Qué cubre:** la parte 3 del enunciado completa. Es un requerimiento con la forma exacta de los del individual: llega un pedido nuevo sobre código que ya funciona, y hay que decidir **dónde** impacta antes de escribir nada. El pedido: además de clases y módulos, una firma tiene que poder decir "cualquier objeto que entienda estos mensajes". Al terminar, el framework está completo y queda el `multimethods.rb` final con sus tests.
+**Qué cubre:** la parte 3 del enunciado completa. Es un requerimiento con la forma exacta de los del individual: llega un pedido nuevo sobre código que ya funciona, y hay que decidir **dónde** impacta antes de escribir nada. El pedido: además de clases y módulos, una firma tiene que poder decir "cualquier objeto que entienda estos mensajes". Al terminar, el framework está completo y queda el `clase05-multimethods.rb` final con sus tests.
 
 **Qué NO cubre:** alternativas de implementación (Módulo 7, opcional).
 
@@ -259,10 +259,10 @@ Con esto los tres lugares están adaptados, y la parte 3 cumple también "compat
 
 ## 6. 🔴 El archivo final
 
-Todo el framework, en el estado en que queda al terminar el enunciado. Es el `multimethods.rb` que va junto a este módulo, con su `multimethods_spec.rb` (25 ejemplos: todos los casos de las partes 1, 2 y 3, más herencia y contexto). Se corren con `rspec multimethods_spec.rb` desde la carpeta donde están los dos archivos.
+Todo el framework, en el estado en que queda al terminar el enunciado. Es el `clase05-multimethods.rb` que va junto a este módulo, con su `clase05-multimethods_spec.rb` (25 ejemplos: todos los casos de las partes 1, 2 y 3, más herencia y contexto). Se corren con `rspec clase05-multimethods_spec.rb` desde la carpeta donde están los dos archivos.
 
 ```ruby
-# multimethods.rb — framework completo
+# clase05-multimethods.rb — framework completo
 
 class PartialBlock
   attr_reader :types, :block
