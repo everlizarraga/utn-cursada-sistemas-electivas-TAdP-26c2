@@ -144,6 +144,8 @@ Corren igual, fallan igual (`X was not equal to Y`) y se mezclan sin problema en
 
 ---
 
+🕳️ **Madriguera — varios proyectos en un solo `build.sbt`.** Si venís de Maven con un POM padre y módulos hijos: sbt tiene lo mismo, se llama *multi-proyecto*. Un `build.sbt` en la raíz declara cada módulo con `lazy val servicioA = project in file("servicio-a")`, y uno depende de otro con `.dependsOn(servicioA)`; IntelliJ lo importa como módulos, igual que con Maven. El repo del TP está armado de otra forma: `ruby/` y `scala/` son dos proyectos sueltos, sin un `build.sbt` arriba que los una, y por eso la raíz no se importa. En esta materia alcanza con un proyecto solo. *Volvé al camino — esto se profundiza aparte, otro día.*
+
 ## 6. Qué pasa con `ruby/`
 
 La carpeta `ruby/` es el proyecto de la primera mitad. Se abre con RubyMine (o IntelliJ Ultimate con el plugin de Ruby) apuntando a esa carpeta, igual que acá apuntaste a `scala/`. Desde IntelliJ Community con el plugin de Scala, `ruby/` es texto plano y no hace falta abrirla: la ventana de `scala/` es tu proyecto de la segunda mitad.

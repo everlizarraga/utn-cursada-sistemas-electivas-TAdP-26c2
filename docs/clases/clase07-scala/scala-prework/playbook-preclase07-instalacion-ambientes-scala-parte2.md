@@ -16,7 +16,7 @@
 
 | Campo | Qué poner | Por qué |
 |---|---|---|
-| **Name** | `practica-scala` (o el que quieras, sin espacios) | Es el nombre de la carpeta y del proyecto. |
+| **Name** | `practica-scala` (o el que quieras, sin espacios; ver la tabla de nombres al final de esta sección) | Es el nombre de la carpeta y del proyecto. |
 | **Location** | la carpeta donde guardás las cosas de la materia | Debajo se crea una carpeta con el nombre del proyecto. |
 | **Create Git repository** | destildado | El git lo armás a mano en la sección 6, para ver qué hace cada paso. |
 | **Build system** | **sbt** | Es el que usa el TP y el que usa la cátedra. Las otras dos opciones (IntelliJ, Scala CLI) quedan afuera. |
@@ -37,6 +37,20 @@
 ⚠️ Hacelo con una conexión estable y con tiempo: la primera sincronización descarga unos cientos de MB.
 
 ---
+
+### Sugerencia de buenas prácticas para los nombres
+
+Es convención, no regla del compilador, salvo donde lo dice la tabla. Seguirla hace que tu código se vea como el de la cátedra y el de las librerías.
+
+| Qué nombrás | Convención | Ejemplo | Lo que el compilador exige |
+|---|---|---|---|
+| Proyecto y carpeta | minúsculas con guiones | `practica-scala` | Nada; pero sin espacios, tildes ni ñ te ahorrás problemas en terminal y en git |
+| Package | minúsculas, solo letras y puntos | `practica.biblioteca` | **Sí:** sin guiones ni espacios, porque es un identificador. `practica-scala` como package no compila |
+| Clase, trait, object | `PascalCase` | `Libro`, `SocioTest` | Nada; pero el archivo lleva el mismo nombre: `Libro.scala` |
+| Método, variable, parámetro | `camelCase` | `paginasPendientes`, `pedir` | Nada |
+| Test | el nombre de la clase + `Test` o `Spec` | `SocioTest`, `ProjectSpec` | Nada; es lo que usan la cátedra y el repo |
+
+Scala distingue mayúsculas de minúsculas en todo: `libro` y `Libro` son dos nombres distintos, y así se usa (`val libro = new Libro(...)`).
 
 ## 2. Qué es cada carpeta
 
