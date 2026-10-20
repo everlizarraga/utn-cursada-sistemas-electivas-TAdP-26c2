@@ -26,7 +26,7 @@ Un **package** es una carpeta con nombre que agrupa clases. En Scala, la primera
 
 ⚠️ Si IntelliJ muestra una sola carpeta llamada `practica.biblioteca`, con el punto en el nombre, es solo cómo la dibuja el panel (compacta las carpetas con un solo hijo). Las carpetas reales están bien. Para verlas separadas: engranaje del panel Project → destildá **Compact Middle Packages**.
 
-2. Botón derecho sobre la carpeta `biblioteca` recién creada (o sobre `practica.biblioteca`, si el panel la muestra compactada) → **New → Scala Class**. Nombre: `Libro`. Tipo: **Class**. Enter.
+2. Botón derecho sobre la carpeta `biblioteca` recién creada (o sobre `practica.biblioteca`, si el panel la muestra compactada) → **New → Scala Class/File**. Aparece un cartel con un campo para el nombre y una lista: **Class, Trait, Case Class, Enum, Object, File**. Escribí `Libro`, dejá **Class** seleccionado y Enter. IntelliJ crea `Libro.scala` con la línea del `package` ya escrita.
 3. Reemplazá el contenido del archivo por esto:
 
 ```scala
@@ -39,12 +39,16 @@ class Libro(val titulo: String, val paginas: Int)
 
 **✅ Deberías ver:** en el panel Project, `src/main/scala/practica/biblioteca/Libro.scala`, y el archivo con las palabras clave `package`, `class` y `val` resaltadas en el color de tu tema.
 
+⚠️ **Scala Worksheet no es lo que buscás.** En el mismo menú New hay una opción **Scala Worksheet**, que crea un archivo `.sc`. Un worksheet es un bloc de pruebas: ejecuta cada línea y muestra el resultado al costado, pero no forma parte del programa; los otros archivos y los tests no lo ven. Lo que necesitás acá, y siempre en la materia, son archivos **`.scala`**, que salen de **Scala Class/File**. Si te quedó un `Libro.sc`, borralo (botón derecho → Delete) y creá el `.scala`. Para reconocerlos en el panel: los `.scala` tienen el ícono azul con una **C** (clase) o naranja con una **O** (object); el `.sc` tiene el ícono rojo de Scala a secas.
+
+De las otras opciones del cartel, en este playbook usás **Class** y **Object**. **Trait** y **Case Class** aparecen en la clase07 y más adelante en la cursada.
+
 ---
 
 ## 3. El package de los socios: `Socio`, con `import`
 
 1. Botón derecho sobre `src/main/scala` → **New → Package**. Nombre: `practica.socios`.
-2. Botón derecho sobre `socios` → **New → Scala Class**. Nombre: `Socio`. Tipo: Class.
+2. Botón derecho sobre `socios` → **New → Scala Class/File** → `Socio`, **Class**, Enter.
 3. Contenido:
 
 ```scala
@@ -86,7 +90,7 @@ El `import` es el punto de esta parte. `Socio` está en `practica.socios` y `Lib
 
 Este archivo va en el package de arriba, `practica`, y usa las dos clases: necesita dos `import`.
 
-1. Botón derecho sobre la carpeta `practica` (la que contiene a `biblioteca` y `socios`) → **New → Scala Class**. Nombre: `Main`. Tipo: **Object**.
+1. Botón derecho sobre la carpeta `practica` (la que contiene a `biblioteca` y `socios`) → **New → Scala Class/File** → `Main`, y en la lista elegí **Object** (el del ícono naranja), Enter.
 2. Contenido:
 
 ```scala
@@ -128,7 +132,7 @@ Process finished with exit code 0
 Los tests van en `src/test/scala`, **con la misma estructura de packages** que el código que prueban. Es convención, y es la que sigue el repo del TP: el test de `Socio` va en `practica.socios`.
 
 1. Botón derecho sobre `src/test/scala` → **New → Package**. Nombre: `practica.socios`.
-2. Botón derecho sobre esa carpeta `socios` (la de `test`) → **New → Scala Class**. Nombre: `SocioTest`. Tipo: Class.
+2. Botón derecho sobre esa carpeta `socios` (la de `test`) → **New → Scala Class/File** → `SocioTest`, **Class**, Enter.
 3. Contenido:
 
 ```scala
@@ -200,9 +204,42 @@ Volvé a poner `1200`. Corré. Verde de nuevo.
 
 **Correr todos los tests del proyecto de una vez**, como lo hace la cátedra para corregir: panel **sbt** (pestaña vertical derecha) → desplegá tu proyecto → **sbt tasks** → doble clic en **test**.
 
-**✅ Deberías ver:** una consola de sbt con el resumen `Tests: succeeded 4, failed 0, canceled 0, ignored 0, pending 0`.
+⚠️ `sbt tasks` lista decenas de tareas, en orden alfabético. Es normal. Para la materia alcanzan cuatro: **test** (corre los tests), **compile** (compila sin correr), **run** (ejecuta el `object … extends App`) y **clean** (borra lo compilado, para cuando algo queda raro). Las carpetas `main` y `test` que aparecen más abajo en el mismo panel son otra cosa: son los módulos del proyecto, muestran carpetas y dependencias, y no corren nada.
 
-Si además tenés sbt instalado en el sistema, `sbt test` en la terminal integrada hace exactamente lo mismo. Si responde `command not found: sbt`, es normal: el plugin de IntelliJ trae su propio sbt, solo para el IDE.
+**✅ Deberías ver:** se abre abajo una ventana **sbt shell** que arranca sbt, compila y termina con el resumen `Tests: succeeded 4, failed 0, canceled 0, ignored 0, pending 0` y `All tests passed`. La primera línea `[info]` dice `welcome to sbt 1.9.0 (Microsoft Java 17.0.20.1)` o similar: ahí ves con qué Java corre.
+
+### La sbt shell: una consola que queda esperando
+
+Después del resumen, la ventana queda con un `>` y el cursor. Es la **sbt shell**: sbt sigue cargado y espera el próximo comando, para que arranque en un segundo en lugar de diez. Podés escribir ahí directamente, sin pasar por el panel:
+
+```
+> test                                    corre todos los tests
+> testOnly practica.socios.SocioTest      corre una sola clase de tests
+> run                                     ejecuta el Main
+> compile                                 compila sin correr nada
+> clean                                   borra lo compilado
+```
+
+Y tiene lo que en Ruby era la consola con tus archivos cargados: `console` abre la consola de Scala con tus clases ya compiladas.
+
+```
+> console
+scala> import practica.biblioteca.Libro
+scala> import practica.socios.Socio
+scala> val ana = new Socio("Ana")
+scala> ana.pedir(new Libro("Uno", 100))
+scala> ana.paginasPendientes
+val res0: Int = 100
+scala> :quit
+```
+
+Con `:quit` volvés al `>` de sbt.
+
+**Prenderla y apagarla:** el cuadrado rojo del borde izquierdo de la ventana apaga sbt; cuando está apagada, en ese mismo lugar aparece una flecha circular verde que lo vuelve a arrancar. Para abrir la ventana sin correr nada antes: ícono de sbt shell en la barra vertical izquierda de IntelliJ, o **View → Tool Windows → sbt shell**. Dejarla abierta no molesta; cerrarla no rompe nada.
+
+**Dos formas de correr, el mismo resultado.** El ▷ verde del editor usa el ejecutor de IntelliJ y muestra el árbol con tildes; la sbt shell muestra el resumen en texto de sbt. Las dos compilan con el mismo JDK y dan el mismo veredicto. Usá la que te resulte más cómoda; en el TP conviene pasar por `test` en la shell antes de cada push, porque es lo que corre GitHub.
+
+Si además tenés sbt instalado en el sistema, `sbt test` en la terminal integrada hace lo mismo que la shell. Si responde `command not found: sbt`, es normal: el plugin de IntelliJ trae su propio sbt, solo para el IDE.
 
 ---
 
@@ -232,6 +269,7 @@ git commit -m "Dominio biblioteca: Libro, Socio, Main y SocioTest"
 - [ ] `Run 'Main'` imprime las tres líneas.
 - [ ] `SocioTest` da 4 tests en verde desde el ▷.
 - [ ] Viste un test en rojo con `X was not equal to Y` y lo arreglaste.
+- [ ] Corriste `test` desde la sbt shell y sabés prenderla y apagarla.
 - [ ] Segundo commit hecho.
 
 **Para practicar un rato más, sin instrucciones:** agregale a `Socio` un método `devolverTodo` que deje ambos contadores en cero, y escribile su test primero. Cuando el test pase, listo.

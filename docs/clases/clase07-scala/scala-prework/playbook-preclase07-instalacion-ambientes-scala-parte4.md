@@ -91,13 +91,31 @@ En los dos casos, si tenías otro proyecto abierto, IntelliJ pregunta **This Win
 - Aparecieron `.bsp/` y `target/`, que ya están en el `.gitignore` de la carpeta `scala/`.
 - Arriba, al lado del nombre del proyecto, aparece la rama de git (`main`). IntelliJ encontró el `.git` en la carpeta de arriba y lo usa igual: **commits y push los hacés normalmente desde esta ventana**, aunque hayas abierto una subcarpeta.
 
-⚠️ Si al importar pide un JDK ("No SDK configured" o similar), desplegá y elegí el **17** que descargaste en la Parte 2; ya está en la máquina.
+---
 
-⚠️ Si el JDK que ofrece es otro (21, 25), funciona igual para compilar, pero elegí el 17 para que tu máquina y los tests de GitHub usen el mismo.
+## 4. Verificar el JDK (paso que se saltea sin darse cuenta)
+
+🔴 **Al importar, IntelliJ no pregunta qué JDK usar: toma el primero que encuentra en la máquina.** Si tenés Java por otra materia (21, 26, el que sea), es probable que haya elegido ese, y vos no te enteraste. El proyecto compila igual, pero con una versión distinta a la de los tests de GitHub. Se revisa en dos lugares, porque son dos configuraciones.
+
+**1. El JDK del proyecto** (el que usan el editor y el ▷):
+
+**File → Project Structure** (`⌘ ;` en Mac / `Ctrl Alt Shift S`) → **Project** → campo **SDK**.
+
+**✅ Deberías ver:** `ms-17 Microsoft OpenJDK 17.0.x - aarch64` (o el nombre del 17 que bajaste en la Parte 2). Si dice otra cosa, como `homebrew-21`, desplegá: el 17 está en la lista, porque ya lo bajaste. Elegilo → **Apply** → **OK**. Más abajo, bajo "Detected SDKs", pueden aparecer otros Java de tu máquina; ignoralos.
+
+**2. El Java con el que corre sbt** (el de la sbt shell y de `sbt tasks`):
+
+Abrí la **sbt shell** (ícono en la barra izquierda, o View → Tool Windows → sbt shell). Si ya estaba corriendo de antes, apagala con el cuadrado rojo y volvé a arrancarla con la flecha verde, para que tome el cambio. Leé la primera línea `[info]`.
+
+**✅ Deberías ver:** `[info] welcome to sbt 1.9.0 (Microsoft Java 17.0.x)`. sbt toma el JDK del proyecto, así que con el paso 1 alcanza.
+
+⚠️ Si la shell sigue diciendo otro Java: **Settings** (`⌘ ,` / `Ctrl Alt S`) → **Build, Execution, Deployment → Build Tools → sbt** → campo **JRE** → elegí **Project JDK** → Apply, y reiniciá la shell.
+
+⚠️ El mismo chequeo vale para cualquier proyecto Scala que abras, incluido el de la clase07 (sección "Lo que viene").
 
 ---
 
-## 4. Correr el test de la cátedra
+## 5. Correr el test de la cátedra
 
 El repo viene con un test de humo, `ProjectSpec`, cuyo único propósito es confirmar que las dependencias bajaron y que todo compila. Abrilo: `src/test/scala/ProjectSpec.scala`.
 
@@ -125,9 +143,11 @@ Hacé clic en el **▷** al margen de `class ProjectSpec` → Run.
 
 Con eso el repo está operativo. Lo que escribas en `src/main/scala` y `src/test/scala` compila con las mismas versiones que todo el material.
 
+`Prueba.scala`, el otro archivo del repo, no tiene ▷: es un `case object` con un solo método y sin `extends App`, así que no hay nada para ejecutar. Existe para que `ProjectSpec` tenga algo que probar. Un programa ejecutable se escribe como el `Main` de la Parte 3.
+
 ---
 
-## 5. Dos estilos de test, la misma librería
+## 6. Dos estilos de test, la misma librería
 
 Este test se ve distinto al `SocioTest` de la Parte 3. Son dos **estilos** de ScalaTest, y los dos vienen en la misma librería que ya tenés:
 
@@ -146,7 +166,7 @@ Corren igual, fallan igual (`X was not equal to Y`) y se mezclan sin problema en
 
 🕳️ **Madriguera — varios proyectos en un solo `build.sbt`.** Si venís de Maven con un POM padre y módulos hijos: sbt tiene lo mismo, se llama *multi-proyecto*. Un `build.sbt` en la raíz declara cada módulo con `lazy val servicioA = project in file("servicio-a")`, y uno depende de otro con `.dependsOn(servicioA)`; IntelliJ lo importa como módulos, igual que con Maven. El repo del TP está armado de otra forma: `ruby/` y `scala/` son dos proyectos sueltos, sin un `build.sbt` arriba que los una, y por eso la raíz no se importa. En esta materia alcanza con un proyecto solo. *Volvé al camino — esto se profundiza aparte, otro día.*
 
-## 6. Qué pasa con `ruby/`
+## 7. Qué pasa con `ruby/`
 
 La carpeta `ruby/` es el proyecto de la primera mitad. Se abre con RubyMine (o IntelliJ Ultimate con el plugin de Ruby) apuntando a esa carpeta, igual que acá apuntaste a `scala/`. Desde IntelliJ Community con el plugin de Scala, `ruby/` es texto plano y no hace falta abrirla: la ventana de `scala/` es tu proyecto de la segunda mitad.
 
@@ -157,11 +177,12 @@ La carpeta `ruby/` es el proyecto de la primera mitad. Se abre con RubyMine (o I
 - [ ] Viste cómo se ve el repo abierto desde la raíz (todo gris, sin pestaña sbt) y sabés que esa no es la forma.
 - [ ] Abriste `scala/build.sbt` → Open as Project (camino A) o la carpeta `scala/` (camino B); anotaste cuál.
 - [ ] La ventana se llama `tp-hibrido-objetos-funcional` y tiene la pestaña sbt.
+- [ ] Project Structure → SDK dice 17, y la sbt shell arranca con `Microsoft Java 17`.
 - [ ] `ProjectSpec` da 1 test en verde.
 - [ ] Reconocés los dos estilos de test y sabés que `shouldBe` funciona en ambos.
 
 ## Lo que viene
 
-Hasta acá la preclase. Lo que sigue es la **clase07** (Tipado estático en Scala), empezando por el Módulo 0, que presenta el proyecto en el que corre todo el código de la unidad. Ese proyecto es el `tadp-clase07-tipado-estatico.zip` del `fuente-repo-clase07`: descomprimilo y abrilo como en el Camino A de esta parte: File → Open, seleccioná su `build.sbt` → Open as Project. Si `AtaqueTest` da seis tests en verde, estás listo para el Módulo 0.
+Hasta acá la preclase. Lo que sigue es la **clase07** (Tipado estático en Scala), empezando por el Módulo 0, que presenta el proyecto en el que corre todo el código de la unidad. Ese proyecto es el `tadp-clase07-tipado-estatico.zip` del `fuente-repo-clase07`: descomprimilo y abrilo como en el Camino A de esta parte: File → Open, seleccioná su `build.sbt` → Open as Project. Verificá el JDK como en la sección 4. Si `AtaqueTest` da seis tests en verde, estás listo para el Módulo 0.
 
 **FIN DE LA PARTE 4 — FIN DEL PLAYBOOK preclase07**
